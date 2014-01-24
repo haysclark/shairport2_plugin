@@ -30,7 +30,7 @@ my $prefs = preferences('plugin.shairtunes');
 my $airport_pem = join '', <DATA>;
 my $rsa = Crypt::OpenSSL::RSA->new_private_key($airport_pem) || die "RSA private key import failed";
 
-my $hairtunes_cli = "hairtunes";
+my $hairtunes_cli = "shairport_helper";
 my $pipepath = "/tmp/pipe";
 
 my %clients = ();
