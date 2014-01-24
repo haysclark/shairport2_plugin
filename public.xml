@@ -1,0 +1,19 @@
+<extensions>
+  <details>
+    <title lang="EN">ShairTunes Plugin</title>
+  </details>
+  <plugins>
+    <plugin name="ShairTunes" version="0.23.3" minTarget="7.5" maxTarget="*">
+      <title lang="EN">ShairTunes</title>
+      <desc lang="EN">Airtunes for LMS</desc>
+      <url>
+        https://github.com/StuartUSA/shairport_plugin/ShairTunes.zip
+      </url>
+      <link>https://github.com/StuartUSA/shairport_plugin</link>
+      <sha>f7b7055898fe491e21acc9ceb34882b4db013a0f</sha>
+      <creator>DSTMK</creator>
+      <email>StuartUSA@users.noreply.github.com</email>
+    </plugin>
+  </plugins>
+</extensions>
+

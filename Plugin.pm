@@ -64,7 +64,7 @@ sub playerSubscriptionChange {
 
 	$log->debug("request=$reqstr client=$clientname");
 	
-	if ($reqstr eq "client new") {
+	if ( ($reqstr eq "client new") || ($reqstr eq "client reconnect") ) {
 	        $sockets{$client} = createListenPort();
 	        $players{$sockets{$client}} = $client;
 
@@ -77,7 +77,11 @@ sub playerSubscriptionChange {
                         $log->error("could not create ShairTunes socket for $clientname");
                         delete $sockets{$client}
                 }
-	}
+	} elsif ($reqstr eq "client disconnect") {
+                $log->debug("publisher for $clientname PID $clients{$client} will be terminated.");
+		system "kill $clients{$client}";
+                Slim::Networking::Select::removeRead($sockets{$client});
+        }
 }
 
 
