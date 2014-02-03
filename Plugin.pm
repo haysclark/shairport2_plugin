@@ -356,6 +356,15 @@ sub conn_handle_request {
 
             my $host = Slim::Utils::Network::serverAddr();
             my $url = "airplay://$host:$hport/stream.wav";
+            my $client = $conn->{player};
+            my @otherclients = grep { $_->name ne $client->name and $_->power }
+                                    $client->syncGroupActiveMembers();
+            foreach my $otherclient (@otherclients)
+            {
+                $log->info('turning off: ' . $otherclient->name);
+                $otherclient->display->showBriefly({line => ['AirPlay streaming to ' . $client->name . ':', 'Turning this player off']});
+                $otherclient->execute(['power', 0]);
+            }
             $conn->{player}->execute( [ 'playlist', 'play', $url ] );
             
             last;
