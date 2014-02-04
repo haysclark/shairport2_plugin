@@ -146,10 +146,9 @@ sub publishPlayer()
 	return $pid
 }
 
-sub ip6bin 
-{
+sub ip6bin {
     my $ip = shift;
-    $ip =~ /((.*):?(.+)/;
+    $ip =~ /((.*)::)?(.+)/;
     my @left = split /:/, $2;
     my @right = split /:/, $3;
     my @mid;
@@ -157,8 +156,9 @@ sub ip6bin
     if ($pad > 0) {
         @mid = (0) x $pad;
     }
+
     pack('S>*', map { hex } (@left, @mid, @right));
-}
+} 
 
 sub handleSocketConnect()
 {
