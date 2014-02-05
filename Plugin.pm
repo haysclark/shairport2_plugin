@@ -379,6 +379,7 @@ sub conn_handle_request {
         /^TEARDOWN$/ && do {
             $resp->header('Connection', 'close');
             close $conn->{decoder_fh};
+            $conn->{player}->execute( [ 'stop' ] );
             last;
         };
         /^SET_PARAMETER$/ && do {
