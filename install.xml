@@ -4,7 +4,7 @@
 	<name>PLUGIN_SHAIRTUNES</name>
 	<module>Plugins::ShairTunes::Plugin</module>
 	<playerMenu>RADIO</playerMenu>
-	<version>0.23.5</version>
+	<version>0.23.6</version>
 	<description>PLUGIN_SHAIRTUNES_DESC</description>
 	<creator>DSTMK</creator>
 	<defaultState>enabled</defaultState>

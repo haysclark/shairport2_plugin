@@ -3,14 +3,14 @@
     <title lang="EN">ShairTunes Plugin</title>
   </details>
   <plugins>
-    <plugin name="ShairTunes" version="0.23.5" minTarget="7.5" maxTarget="*">
+    <plugin name="ShairTunes" version="0.23.6" minTarget="7.5" maxTarget="*">
       <title lang="EN">ShairTunes</title>
       <desc lang="EN">Airtunes for LMS</desc>
       <url>
         https://raw2.github.com/StuartUSA/shairport_plugin/master/ShairTunes.zip
       </url>
       <link>https://github.com/StuartUSA/shairport_plugin</link>
-      <sha>97421ae21c94a4bf9509e8205113b19498c11b2d</sha>
+      <sha>8d04f21bb1f7217dc9244bb47201f994cea9cc18</sha>
       <creator>DSTMK</creator>
       <email>StuartUSA@users.noreply.github.com</email>
     </plugin>
