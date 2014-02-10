@@ -9,7 +9,16 @@ http://raw2.github.com/StuartUSA/shairport_plugin/master/public.xml
 
 Then install the plugin and enable as per usual.
 
-Once installed compile the helper app, on Linux:
+Once installed the helper app needs to be compiled and/or installed into the systems PATH. There
+are a number of pre-compiled binaries in the directory:
+
+/var/lib/squeezeboxserver/cache/InstalledPlugins/Plugins/ShairTunes/shairport_helper/pre-compiled
+
+Copy the one for your system into the PATH, on a linux system you may copy it to:
+
+/usr/loca/bin/shairport_helper   - note the file needs to be renamed.
+ 
+To compile the helper app, on Linux:
 
     > cpan HTTP::Request HTTP::Message Crypt::OpenSSL::RSA IO::Socket::INET6 Net::SDP
     > apt-get install build-essential libssl-dev libcrypt-openssl-rsa-perl \
