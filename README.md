@@ -3,7 +3,8 @@ shairport_plugin
 
 ShairPort Plugin for Squeezebox Server adds airTunes support for each Squeezebox server client.
 
-To install add this repo on your Setting:Plugins page:
+To install the plugin open the LMS GUI then click on Settings, then select the Plugins tab,
+at the bottom of the page add the repo:
 
 http://raw2.github.com/StuartUSA/shairport_plugin/master/public.xml
 
