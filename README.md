@@ -36,7 +36,7 @@ Lastly, ensure avahi-daemon is configured correctly. edit the file /etc/avahi/av
 
     [server]
     use-ipv4=yes
-    use-ipv6=no
+    use-ipv6=no  #if you have ios7 devices change to yes
     
     [wide-area]
     enable-wide-area=yes
