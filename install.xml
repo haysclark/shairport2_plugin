@@ -13,10 +13,10 @@
 	<icon></icon>
 	<type>2</type><!-- type=extension -->
 	<targetApplication>
-		<id>Squeezecenter</id>
+		<id>Logitech Media Server</id>
 		<minVersion>7.3</minVersion>
 		<maxVersion>7.*</maxVersion>
 	</targetApplication>
 	<targetPlatform>Linux</targetPlatform>
-
+	<targetPlatform>Unix</targetPlatform>
 </extension>

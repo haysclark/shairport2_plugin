@@ -54,11 +54,12 @@ static int debug = 0;
 
 #include "http.h"
 
+// default buffer size
+#define START_FILL    256 
 // and how full it needs to be to begin (must be <BUFFER_FRAMES)
-#define START_FILL    100
-#define MIN_FILL      80
+#define MIN_FILL      128
 
-#define MAX_PACKET      2048
+#define MAX_PACKET    2048
 
 typedef unsigned short seq_t;
 
@@ -66,7 +67,9 @@ typedef unsigned short seq_t;
 static unsigned char aeskey[16], aesiv[16];
 static AES_KEY aes;
 static char *rtphost = 0;
-static int dataport = 0, controlport = 0, timingport = 0;
+static int dataport = 0; 
+static int controlport = 0; 
+static int timingport = 0;
 static int fmtp[32];
 static int sampling_rate;
 static int frame_size;
@@ -82,7 +85,7 @@ http_parser_settings http_settings = {
     .on_headers_complete = http_on_headers_complete,
 };
 
-http_parser* http_parser_ctx = NULL;
+http_parser *http_parser_ctx = NULL;
 
 
 static int buffer_start_fill;
@@ -122,8 +125,10 @@ static abuf_t audio_buffer[BUFFER_FRAMES];
 #define BUFIDX(seqno) ((seq_t)(seqno) % BUFFER_FRAMES)
 
 // mutex-protected variables
-static seq_t ab_read, ab_write;
-static int ab_buffering = 1, ab_synced = 0;
+static seq_t ab_read; 
+static seq_t ab_write;
+static int ab_buffering = 1; 
+static int ab_synced = 0;
 static pthread_mutex_t ab_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t ab_buffer_ready = PTHREAD_COND_INITIALIZER;
 
@@ -134,10 +139,11 @@ static void die(char *why) {
 
 #ifdef HAIRTUNES_STANDALONE
 static int hex2bin(unsigned char *buf, char *hex) {
-    int i, j;
+    int i; 
+    int j;
     if (strlen(hex) != 0x20)
         return 1;
-    for (i=0; i<0x10; i++) {
+    for (i=0; i < 0x10; i++) {
         if (!sscanf(hex, "%2X", &j))
            return 1;
         hex += 2;
@@ -256,10 +262,11 @@ static int ipv4_only = 1;
 
 #ifdef HAIRTUNES_STANDALONE
 int main(int argc, char **argv) {
-    char *hexaeskey = 0, *hexaesiv = 0;
+    char *hexaeskey = 0;
+    char *hexaesiv = 0;
     char *fmtpstr = 0;
     char *arg;
-    assert(RAND_MAX >= 0x10000);    // XXX move this to compile time
+    assert(RAND_MAX >= 0x7fff);    // XXX move this to compile time
     while ( (arg = *++argv) ) {
         if (!strcasecmp(arg, "iv")) {
             hexaesiv = *++argv;
@@ -286,7 +293,7 @@ int main(int argc, char **argv) {
         } else
         if (!strcasecmp(arg, "host")) {
             rtphost = *++argv;
-        }
+        } 
 #ifdef FANCY_RESAMPLING
         else if (!strcasecmp(arg, "resamp")) {
             fancy_resampling = atoi(*++argv);
@@ -308,14 +315,14 @@ int main(int argc, char **argv) {
 
 static void init_buffer(void) {
     int i;
-    for (i=0; i<BUFFER_FRAMES; i++)
+    for (i = 0; i < BUFFER_FRAMES; i++)
         audio_buffer[i].data = malloc(OUTFRAME_BYTES);
     ab_resync();
 }
 
 static void ab_resync(void) {
     int i;
-    for (i=0; i<BUFFER_FRAMES; i++)
+    for (i = 0; i < BUFFER_FRAMES; i++)
         audio_buffer[i].ready = 0;
     ab_synced = 0;
     ab_buffering = 1;
@@ -355,10 +362,10 @@ static void buffer_put_packet(seq_t seqno, char *data, int len) {
         ab_read = seqno-1;
         ab_synced = 1;
     }
+    if(debug) 
+        fprintf(stderr, "buffer_put_packet: [%i]\n", seqno);
     
-    //fprintf(stderr, "[%i]", seqno);
-    
-    if (seqno == ab_write+1) {                  // expected packet
+    if (seqno == (seq_t)(ab_write+1)) {                  // expected packet
         abuf = audio_buffer + BUFIDX(seqno);
         ab_write = seqno;
     } else if (seq_order(ab_write, seqno)) {    // newer than expected
@@ -367,9 +374,9 @@ static void buffer_put_packet(seq_t seqno, char *data, int len) {
         ab_write = seqno;
     } else if (seq_order(ab_read, seqno)) {     // late but not yet played
         abuf = audio_buffer + BUFIDX(seqno);
-        fprintf(stderr, "\nrecovered packet %04X (%04X:%04X)\n", seqno, ab_read, ab_write);
+        fprintf(stderr, "buffer_put_packet: recovered packet %04X (%04X:%04X)\n", seqno, ab_read, ab_write);
     } else {    // too late.
-        fprintf(stderr, "\nlate packet %04X (%04X:%04X)\n", seqno, ab_read, ab_write);
+        fprintf(stderr, "buffer_put_packet: late packet %04X (%04X:%04X)\n", seqno, ab_read, ab_write);
     }
     buf_fill = ab_write - ab_read;
     pthread_mutex_unlock(&ab_mutex);
@@ -393,12 +400,12 @@ static struct sockaddr_storage rtp_client;
 static socklen_t rtp_client_len;
 
 static void *rtp_thread_func(void *arg) {
-    socklen_t si_len;
     char packet[MAX_PACKET];
     char *pktp;
     seq_t seqno;
     ssize_t plen;
-    int sock = rtp_sockets[0], csock = rtp_sockets[1];
+    int sock = rtp_sockets[0]; 
+    int csock = rtp_sockets[1];
     int readsock;
     char type;
 
@@ -423,7 +430,8 @@ static void *rtp_thread_func(void *arg) {
         assert(plen<=MAX_PACKET);
 
         type = packet[1] & ~0x80;
-        //fprintf(stderr, "{%02X}", type);
+	if(debug)
+            fprintf(stderr, "rtp_thread_func: {%02X}", type);
         fflush(stderr);
         if (type == 0x60 || type == 0x56) {   // audio data / resend
             pktp = packet;
@@ -443,7 +451,7 @@ static void *rtp_thread_func(void *arg) {
             } else {
                 // resync?
                 if (type == 0x56 && seqno == 0) {
-                    fprintf(stderr, "Suspected resync request packet received. Initiating resync.\n");
+                    fprintf(stderr, "rtp_thread_func: Suspected resync request packet received. Initiating resync.\n");
                     pthread_mutex_lock(&ab_mutex);
                     ab_resync();
                     pthread_mutex_unlock(&ab_mutex);
@@ -478,7 +486,7 @@ static void rtp_request_resend(seq_t first, seq_t last) {
 #endif
 
     if (sizeof(req) != sendto(rtp_sockets[1], req, sizeof(req), 0, (struct sockaddr*) &rtp_client, sizeof(struct sockaddr_storage))) {
-        fprintf(stderr, "\nSENDTO failed: %s\n", strerror(errno));
+        fprintf(stderr, "rtp_request_resend: SENDTO failed (%s)\n", strerror(errno));
     }
 }
 
@@ -518,7 +526,8 @@ static int init_rtp(void) {
     }
 #endif
 
-    int sock = -1, csock = -1;    // data and control (we treat the streams the same here)
+    int sock = -1; 
+    int csock = -1;    // data and control (we treat the streams the same here)
     unsigned short port = 6000;
     while(1) {
         if(sock < 0)
@@ -534,12 +543,12 @@ static int init_rtp(void) {
         }
 #endif
         if (sock==-1)
-            die("Can't create data socket!");
+            die("init_rtp: Can't create data socket!");
 
         if(csock < 0)
             csock = socket(type, SOCK_DGRAM, IPPROTO_UDP);
         if (csock==-1)
-            die("Can't create control socket!");
+            die("init_rtp: Can't create control socket!");
 
         *sin_port = htons(port);
         int bind1 = bind(sock, si_p, si_len);
@@ -559,7 +568,7 @@ static int init_rtp(void) {
     pthread_t rtp_thread;
     rtp_sockets[0] = sock;
     rtp_sockets[1] = csock;
-    fprintf(stderr, "rtp_sockets[0]=%i, rtp_sockets[1]=%i\n", rtp_sockets[0], rtp_sockets[1]);
+    fprintf(stderr, "init_rtp: rtp_sockets[0]=%i, rtp_sockets[1]=%i\n", rtp_sockets[0], rtp_sockets[1]);
     pthread_create(&rtp_thread, NULL, rtp_thread_func, (void *)rtp_sockets);
 
     return port;
@@ -571,7 +580,7 @@ static int init_http(void)
     struct sockaddr_in servaddr;
     
     if (0 > (http_listener = socket(AF_INET, SOCK_STREAM, 0))) {
-        fprintf(stderr, "Could not create http listening socket: %s\n", strerror(errno));
+        fprintf(stderr, "init_http: Could not create http listening socket (%s)\n", strerror(errno));
         die("init_http() failed.");
     }
 
@@ -583,7 +592,7 @@ static int init_http(void)
         servaddr.sin_port        = htons(port);
 
         if (0 > bind(http_listener, (struct sockaddr*) &servaddr, sizeof(servaddr))) {
-            fprintf(stderr, "Could not bind http listening socket to port %i: %s\n", port, strerror(errno));
+            fprintf(stderr, "init_http: Could not bind http listening socket to port %i (%s)\n", port, strerror(errno));
             port++;
             continue;
         }
@@ -593,8 +602,8 @@ static int init_http(void)
 
     /*  Make socket a listening socket  */
 	if (0 > listen(http_listener, 1)) {
-	    fprintf(stderr, "Could not listen on http socket: %s\n", strerror(errno));
-	    die("init_http_failed.");
+	    fprintf(stderr, "init_http: Could not listen on http socket (%s)\n", strerror(errno));
+	    die("init_http: failed");
     }
 
     printf("hport: %d\n", port);    
@@ -608,7 +617,8 @@ static short lcg_rand(void) {
 }
 
 static inline short dithered_vol(short sample) {
-    static short rand_a, rand_b;
+    static short rand_a; 
+    static short rand_b;
     long out;
 
     out = (long)sample * fix_volume;
@@ -661,8 +671,10 @@ static double bf_playback_rate = 1.0;
 
 static double bf_est_drift = 0.0;   // local clock is slower by
 static biquad_t bf_drift_lpf;
-static double bf_est_err = 0.0, bf_last_err;
-static biquad_t bf_err_lpf, bf_err_deriv_lpf;
+static double bf_est_err = 0.0;
+static double bf_last_err;
+static biquad_t bf_err_lpf; 
+static biquad_t bf_err_deriv_lpf;
 static double desired_fill;
 static int fill_count;
 
@@ -694,7 +706,7 @@ static void bf_est_update(short fill) {
     bf_est_drift = biquad_filt(&bf_drift_lpf, CONTROL_B*(adj_error + err_deriv) + bf_est_drift);
 
     if (debug)
-        fprintf(stderr, "bf %d err %f drift %f desiring %f ed %f estd %f\n",
+        fprintf(stderr, "bf_est_update: bf %d err %f drift %f desiring %f ed %f estd %f\n",
                 fill, bf_est_err, bf_est_drift, desired_fill, err_deriv, err_deriv + adj_error);
     bf_playback_rate = 1.0 + adj_error + bf_est_drift;
 
@@ -726,8 +738,8 @@ static short *buffer_get_frame(void) {
 
     buf_fill = ab_write - ab_read;
     if (buf_fill < MIN_FILL || !ab_synced || ab_buffering) {    // init or underrun. stop and wait
-
-        //ab_buffering = 1;
+        
+	//ab_buffering = 1;
         //pthread_cond_wait(&ab_buffer_ready, &ab_mutex);
         //ab_read++;
         //buf_fill = ab_write - ab_read;
@@ -735,10 +747,12 @@ static short *buffer_get_frame(void) {
         
         pthread_mutex_unlock(&ab_mutex);
 
+	fprintf(stderr, "buffer_get_frame: underrun\n");
+
         return 0;
     }
     if (buf_fill >= BUFFER_FRAMES) {   // overrunning! uh-oh. restart at a sane distance
-        fprintf(stderr, "\noverrun.\n");
+        fprintf(stderr, "buffer_get_frame: overrun. buf_fill: %i, buffer_frames: %i\n" , buf_fill, BUFFER_FRAMES);
         ab_read = ab_write - buffer_start_fill;
     }
 
@@ -751,7 +765,7 @@ static short *buffer_get_frame(void) {
 
     curframe = audio_buffer + BUFIDX(read);
     if (!curframe->ready) {
-        fprintf(stderr, "\nmissing frame.\n");
+        fprintf(stderr, "buffer_get_frame: missing frame\n");
         memset(curframe->data, 0, FRAME_BYTES);
     }
     curframe->ready = 0;
@@ -781,13 +795,13 @@ static int stuff_buffer(double playback_rate, short *inptr, short *outptr) {
     if (stuff) {
         if (stuff==1) {
             if (debug)
-                fprintf(stderr, "+++++++++\n");
+                fprintf(stderr, "stuff_buffer: +++++++++\n");
             // interpolate one sample
             *outptr++ = dithered_vol(((long)inptr[-2] + (long)inptr[0]) >> 1);
             *outptr++ = dithered_vol(((long)inptr[-1] + (long)inptr[1]) >> 1);
         } else if (stuff==-1) {
             if (debug)
-                fprintf(stderr, "---------\n");
+                fprintf(stderr, "stuff_buffer: ---------\n");
             inptr++;
             inptr++;
         }
@@ -803,6 +817,10 @@ static int stuff_buffer(double playback_rate, short *inptr, short *outptr) {
 
 static void *audio_thread_func(void *arg) {
     int play_samples;
+
+    struct timespec interval; 
+    interval.tv_sec = 0;
+    interval.tv_nsec = 1000000;
 
     signed short buf_fill __attribute__((unused));
     signed short *inbuf, *outbuf, *silence;
@@ -835,7 +853,7 @@ static void *audio_thread_func(void *arg) {
             http_connection = accept(http_listener, NULL, NULL);
             
             if (http_connection != -1) {
-                fprintf(stderr, "got HTTP connection: %i\n", http_connection);
+                fprintf(stderr, "audio_thread_func: got HTTP connection %i\n", http_connection);
 
                 http_status = 1;
                 http_parser_ctx = malloc(sizeof(http_parser));
@@ -848,7 +866,7 @@ static void *audio_thread_func(void *arg) {
 			
 			if (0 > (recvd = recv(http_connection, http_buffer, sizeof(http_buffer), MSG_DONTWAIT))) {
 			    if ((errno != EAGAIN) && (errno != EWOULDBLOCK)) {
-    				fprintf(stderr, "HTTP recv failed: %s\n", strerror(errno));
+    				fprintf(stderr, "audio_thread_func: HTTP recv failed (%s)\n", strerror(errno));
                 }
 			} else {
 			    if (recvd == 0) {
@@ -858,7 +876,7 @@ static void *audio_thread_func(void *arg) {
                     http_parser_ctx = 0;
                     http_status = 0;
 			    } else {
-                    fprintf(stderr, "HTTP recvd:\n");
+                    fprintf(stderr, "audio_thread_func: HTTP recvd:\n");
                     fflush(stderr);
                     fwrite(http_buffer, recvd, 1, stderr);
                     
@@ -868,13 +886,13 @@ static void *audio_thread_func(void *arg) {
         }
         
        if (ab_buffering) {
-           usleep(1000);
+           nanosleep(&interval, NULL);
            continue;
        }
        
         do {
             inbuf = buffer_get_frame();
-            usleep(1000);
+            nanosleep(&interval, NULL);
         } while (!inbuf);
         
 #ifdef FANCY_RESAMPLING
@@ -900,7 +918,7 @@ static void *audio_thread_func(void *arg) {
             ssize_t sent = send(http_connection, outbuf, play_samples * 4, 0);
             
             if (sent != (play_samples * 4)) {
-                fprintf(stderr, "HTTP send() unexpected response: %li (data=%i): %s\n", sent, play_samples * 4, strerror(errno));
+                fprintf(stderr, "HTTP send() unexpected response: %li (data=%i): %s\n", (long int)sent, play_samples * 4, strerror(errno));
             }
         }
     }
@@ -920,7 +938,7 @@ int http_on_headers_complete(http_parser* parser)
     sent = send(http_connection, response, strlen(response), 0);    
     
     if (sent != strlen(response)) {
-        fprintf(stderr, "HTTP send() unexpected response: %li (strlen=%lu)\n", sent, strlen(response));
+        fprintf(stderr, "HTTP send() unexpected response: %li (strlen=%lu)\n", (long int)sent, (long unsigned int)strlen(response));
     }
     
     http_status = 1000;
