@@ -637,12 +637,15 @@ typedef struct {
     double b[3];
 } biquad_t;
 
+/*
 static void biquad_init(biquad_t *bq, double a[], double b[]) {
     bq->hist[0] = bq->hist[1] = 0.0;
     memcpy(bq->a, a, 2*sizeof(double));
     memcpy(bq->b, b, 3*sizeof(double));
 }
+*/
 
+/*
 static void biquad_lpf(biquad_t *bq, double freq, double Q) {
     double w0 = 2.0 * M_PI * freq * frame_size / (double)sampling_rate;
     double alpha = sin(w0)/(2.0*Q);
@@ -657,6 +660,7 @@ static void biquad_lpf(biquad_t *bq, double freq, double Q) {
 
     biquad_init(bq, a, b);
 }
+*/
 
 static double biquad_filt(biquad_t *bq, double in) {
     double w = in - bq->a[0]*bq->hist[0] - bq->a[1]*bq->hist[1];
@@ -678,6 +682,7 @@ static biquad_t bf_err_deriv_lpf;
 static double desired_fill;
 static int fill_count;
 
+/*
 static void bf_est_reset(short fill) {
     biquad_lpf(&bf_drift_lpf, 1.0/180.0, 0.3);
     biquad_lpf(&bf_err_lpf, 1.0/10.0, 0.25);
@@ -687,6 +692,7 @@ static void bf_est_reset(short fill) {
     bf_est_err = bf_last_err = 0;
     desired_fill = fill_count = 0;
 }
+*/
 
 static void bf_est_update(short fill) {
     if (fill_count < 1000) {
@@ -815,12 +821,33 @@ static int stuff_buffer(double playback_rate, short *inptr, short *outptr) {
     return frame_size + stuff;
 }
 
-static void *audio_thread_func(void *arg) {
-    int play_samples;
+static long long starttime;
+static long long samples_played;
 
-    struct timespec interval; 
-    interval.tv_sec = 0;
-    interval.tv_nsec = 1000000;
+static void wait_audio_thread(int samples) {
+	struct timeval tv;
+	struct timespec sleepinterval;
+	sleepinterval.tv_sec = 0;
+	
+	// this is all bit expensive but it's long-term stable
+	gettimeofday(&tv, NULL);
+	long long nowtime = tv.tv_usec + tv.tv_sec * 1e6;
+	
+	if(!starttime)
+		starttime = nowtime;
+	
+	samples_played += samples;
+	
+	long long finishtime = starttime + samples_played * 1e6 / sampling_rate;
+	sleepinterval.tv_nsec = (finishtime - nowtime) * 1e6;
+	
+	nanosleep(&sleepinterval, NULL);
+	
+	return;
+}
+
+static void *audio_thread_func(void *arg) {
+    int play_samples = 0;
 
     signed short buf_fill __attribute__((unused));
     signed short *inbuf, *outbuf, *silence;
@@ -886,13 +913,13 @@ static void *audio_thread_func(void *arg) {
         }
         
        if (ab_buffering) {
-           nanosleep(&interval, NULL);
+           wait_audio_thread(play_samples);
            continue;
        }
        
         do {
             inbuf = buffer_get_frame();
-            nanosleep(&interval, NULL);
+            wait_audio_thread(play_samples);
         } while (!inbuf);
         
 #ifdef FANCY_RESAMPLING
@@ -925,7 +952,6 @@ static void *audio_thread_func(void *arg) {
 
     return 0;
 }
-
 
 int http_on_headers_complete(http_parser* parser) 
 {
