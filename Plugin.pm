@@ -1,6 +1,6 @@
 use strict;
 
-package Plugins::ShairTunes::Plugin;
+package Slim::Plugin::ShairTunes::Plugin;
 
 use base qw(Slim::Plugin::OPMLBased);
 
@@ -13,7 +13,7 @@ use Crypt::OpenSSL::RSA;
 use Net::SDP;
 use IPC::Open2;
 
-use Plugins::ShairTunes::AIRPLAY;
+use Slim::Plugin::ShairTunes::AIRPLAY;
 
 # create log categogy before loading other modules
 my $log = Slim::Utils::Log->addLogCategory({
@@ -26,17 +26,25 @@ my $log = Slim::Utils::Log->addLogCategory({
 
 use Slim::Utils::Misc;
 my $prefs = preferences('plugin.shairtunes');
+my $prefs = preferences('server');
 
 my $airport_pem = join '', <DATA>;
 my $rsa = Crypt::OpenSSL::RSA->new_private_key($airport_pem) || die "RSA private key import failed";
 
-my $hairtunes_cli = "shairport_helper";
+my $hairtunes_cli = "/opt/lms-7.9.0/Slim/Plugin/ShairTunes/shairport_helper";
 my $pipepath = "/tmp/pipe";
 
 my %clients = ();
 my %sockets = ();
 my %players = ();
 my %connections = ();
+
+my $samplingRate = 44100;
+my $positionRealTime;
+my $durationRealTime;
+my $title = "ShairTunes Title";
+my $artist = "ShairTunes Artist";
+my $album = "ShairTunes Album";
 
 sub initPlugin 
 {
@@ -128,18 +136,18 @@ sub publishPlayer()
                 join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
                 "_raop._tcp",
                  $port,
-                "tp=UDP","sm=false","sv=false","ek=1","et=0,1","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1"; };
+                "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1"; };
             { exec 'dns-sd', '-R',
                 join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
                 "_raop._tcp",
                 ".",
                  $port,
-                "tp=UDP","sm=false","sv=false","ek=1","et=0,1","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1"; };
+                "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1"; };
             { exec 'mDNSPublish',
                 join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
                 "_raop._tcp",
                  $port,
-                "tp=UDP","sm=false","sv=false","ek=1","et=0,1","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1"; };
+                "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1"; };
             die "could not run avahi-publish-service nor dns-sd nor mDNSPublish";
         }
 
@@ -211,8 +219,11 @@ sub conn_handle_data {
     read $socket, my $data, 4096;
     $conn->{data} .= $data;
 
+    $log->debug("\n\nSTART_HTTP_MESSAGE\n". $data . "END_HTTP_MESSAGE\n\n");
+
     if ($conn->{data} =~ /(\r\n\r\n|\n\n|\r\r)/) {
         my $req_data = substr($conn->{data}, 0, $+[0], '');
+	$log->debug("\n\nSTART_HTTP_HEADER\n". $req_data . "END_HTTP_HEADER\n\n");
         $conn->{req} = HTTP::Request->parse($req_data);
         $log->debug("REQ: ".$conn->{req}->method);
         conn_handle_request($socket, $conn);
@@ -242,13 +253,14 @@ sub conn_handle_request {
     my ($socket, $conn) = @_;
 
     my $req = $conn->{req};
-    my $clen = $req->header('content-length') // 0;
+    my $clen = $req->header('Content-Length') // 0;
     if ($clen > 0 && !length($req->content)) {
         $conn->{req_need} = $clen;
         return; # need more!
     }
 
     my $resp = HTTP::Response->new(200);
+    
     $resp->request($req);
     $resp->protocol($req->protocol);
 
@@ -383,20 +395,38 @@ sub conn_handle_request {
             last;
         };
         /^SET_PARAMETER$/ && do {
-            my @lines = split /[\r\n]+/, $req->content;
-                $log->debug("SET_PARAMETER req: " . $req->content);
-            my %content = map { /^(\S+): (.+)/; (lc $1, $2) } @lines;
-            my $cfh = $conn->{decoder_fh};
-            if (exists $content{volume}) {
-                my $volume = $content{volume};
-                my $percent = 100 + ($volume * 3.35);
+	    if ( $req->header('Content-Type') eq "text/parameters" ) {
+            	my @lines = split /[\r\n]+/, $req->content;
+                	$log->debug("SET_PARAMETER req: " . $req->content);
+            	my %content = map { /^(\S+): (.+)/; (lc $1, $2) } @lines;
+            	my $cfh = $conn->{decoder_fh};
+            	if (exists $content{volume}) {
+                	my $volume = $content{volume};
+                	my $percent = 100 + ($volume * 3.35);
                 
-                $conn->{player}->execute( [ 'mixer', 'volume', $percent ] );
+                	$conn->{player}->execute( [ 'mixer', 'volume', $percent ] );
                             
-                $log->debug("sending-> vol: ". $percent);
-            } else {
-                $log->error("unable to perform content for req: " . $req->content);
-
+                	$log->debug("sending-> vol: ". $percent);
+		}
+		elsif (exists $content{progress}) {
+			my ( $start, $curr, $end ) = split( /\//, $content{progress} );
+			$positionRealTime = ( $curr - $start ) / $samplingRate;
+			$durationRealTime = ( $end - $start ) / $samplingRate;
+			
+			$log->debug("Duration: ". $durationRealTime ."; Position: ". $positionRealTime);
+            	} 
+		else {
+                	$log->error("unable to perform content for req: " . $req->content);
+		}
+	    }
+	    elsif ( $req->header('Content-Type') eq "application/x-dmap-tagged" ) {
+		$log->debug("TAG DATA found.");
+	    }
+	    elsif ( $req->header('Content-Type') eq "image/jpeg" ) {
+		$log->debug("IMAGE DATA found.");
+            }
+	    else {
+	    	$log->error("unable to perform content");
             }
             last;
         };

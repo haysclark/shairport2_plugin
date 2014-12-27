@@ -753,7 +753,7 @@ static short *buffer_get_frame(void) {
         
         pthread_mutex_unlock(&ab_mutex);
 
-	fprintf(stderr, "buffer_get_frame: underrun\n");
+	//fprintf(stderr, "buffer_get_frame: underrun\n");
 
         return 0;
     }

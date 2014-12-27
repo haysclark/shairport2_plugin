@@ -1,4 +1,4 @@
-package Plugins::ShairTunes::AIRPLAY;
+package Slim::Plugin::ShairTunes::AIRPLAY;
 
 use strict;
 use base qw(Slim::Player::Pipeline);
@@ -6,7 +6,6 @@ use Slim::Utils::Strings qw(string);
 use Slim::Utils::Misc;
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
-
 
 Slim::Player::ProtocolHandlers->registerHandler('airplay', __PACKAGE__);
 
@@ -70,12 +69,13 @@ sub contentType
 	return ${*$self}{'contentType'};
 }
 
-
 sub getMetadataFor {
 	my ( $class, $client, $url, $forceCurrent ) = @_;
 
 	return {
-		title    =>  'ShairTunes', 
+		title    =>  $Slim::Plugin::ShairTunes::Plugin::title, 
+		artist   =>  $Slim::Plugin::ShairTunes::Plugin::artist,
+		album    =>  $Slim::Plugin::ShairTunes::Plugin::album,
 		bitrate  =>  "CD ",
 		type   => 'ShairTunes',
 	};
