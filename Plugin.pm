@@ -4,6 +4,7 @@ package Plugins::ShairTunes::Plugin;
 
 use base qw(Slim::Plugin::OPMLBased);
 
+use Config;
 use Digest::MD5 qw(md5 md5_hex);
 use MIME::Base64;
 use Slim::Utils::Log;
@@ -27,12 +28,22 @@ my $log = Slim::Utils::Log->addLogCategory({
 
 use Slim::Utils::Misc;
 my $prefs = preferences('plugin.shairtunes');
-my $prefs = preferences('server');
+my $hairtunes_cli = "";
 
 my $airport_pem = join '', <DATA>;
 my $rsa = Crypt::OpenSSL::RSA->new_private_key($airport_pem) || die "RSA private key import failed";
 
-my $hairtunes_cli = "/opt/lms-7.9.0/Plugins/ShairTunes/shairport_helper";
+my ($volume, $directory, $file) = File::Spec->splitpath(__FILE__);
+
+if ( $Config{'archname'} =~ /solaris/ ) {
+	$hairtunes_cli = $directory. "helperBinaries/shairport_helper-i86pc-solaris";
+}
+elsif ( $Config{'archname'} =~ /solaris/ ) {
+	$hairtunes_cli = $directory. "helperBinaries/shairport_helper-x64-linux";
+}
+else {
+	die("No shairport_helper binary for your system available.");
+}
 
 my %clients = ();
 my %sockets = ();
