@@ -1,6 +1,6 @@
 use strict;
 
-package Slim::Plugin::ShairTunes::Plugin;
+package Plugins::ShairTunes::Plugin;
 
 use base qw(Slim::Plugin::OPMLBased);
 
@@ -12,8 +12,9 @@ use IO::Socket::INET6;
 use Crypt::OpenSSL::RSA;
 use Net::SDP;
 use IPC::Open2;
+use Net::DAAP::DMAP qw(:all);
 
-use Slim::Plugin::ShairTunes::AIRPLAY;
+use Plugins::ShairTunes::AIRPLAY;
 
 # create log categogy before loading other modules
 my $log = Slim::Utils::Log->addLogCategory({
@@ -31,8 +32,7 @@ my $prefs = preferences('server');
 my $airport_pem = join '', <DATA>;
 my $rsa = Crypt::OpenSSL::RSA->new_private_key($airport_pem) || die "RSA private key import failed";
 
-my $hairtunes_cli = "/opt/lms-7.9.0/Slim/Plugin/ShairTunes/shairport_helper";
-my $pipepath = "/tmp/pipe";
+my $hairtunes_cli = "/opt/lms-7.9.0/Plugins/ShairTunes/shairport_helper";
 
 my %clients = ();
 my %sockets = ();
@@ -40,14 +40,30 @@ my %players = ();
 my %connections = ();
 
 my $samplingRate = 44100;
-my $positionRealTime;
-my $durationRealTime;
+my $positionRealTime = 0;
+my $durationRealTime = 0;
+
 my $title = "ShairTunes Title";
 my $artist = "ShairTunes Artist";
 my $album = "ShairTunes Album";
+my $bitRate = $samplingRate." Hz"; 
+my $cover = ""; 
 
-sub initPlugin 
-{
+my %airTunesMetaData = ( 
+	artist => $artist,
+	title => $title,
+	album => $album,
+	bitrate => $bitRate,
+	cover => $cover,
+	duration => $durationRealTime,
+	position => $positionRealTime,
+);
+
+sub getAirTunesMetaData {
+	return %airTunesMetaData;
+}
+
+sub initPlugin {
 	my $class = shift;
 
 	$log->info("Initialising " . $class->_pluginDataFor('version'));
@@ -215,15 +231,15 @@ sub conn_handle_data {
         undef $conn->{req_need};
         return;
     }
-
-    read $socket, my $data, 4096;
+   
+    read($socket, my $data, 4096);
     $conn->{data} .= $data;
 
-    $log->debug("\n\nSTART_HTTP_MESSAGE\n". $data . "END_HTTP_MESSAGE\n\n");
+    $log->debug("\n\nSTART_HTTP_MESSAGE\n\n". $data ."\n\nEND_HTTP_MESSAGE\n\n");
 
     if ($conn->{data} =~ /(\r\n\r\n|\n\n|\r\r)/) {
         my $req_data = substr($conn->{data}, 0, $+[0], '');
-	$log->debug("\n\nSTART_HTTP_HEADER\n". $req_data . "END_HTTP_HEADER\n\n");
+	#$log->debug("\n\nSTART_HTTP_HEADER\n". $req_data . "END_HTTP_HEADER\n\n");
         $conn->{req} = HTTP::Request->parse($req_data);
         $log->debug("REQ: ".$conn->{req}->method);
         conn_handle_request($socket, $conn);
@@ -340,7 +356,6 @@ sub conn_handle_request {
                 tport   => $tport,
                 dport   => $dport,
             );
-            $dec_args{pipe} = $pipepath if defined $pipepath;
 
             my $dec = '"' . $hairtunes_cli . '"' . join(' ', '', map { sprintf "%s '%s'", $_, $dec_args{$_} } keys(%dec_args));
             $log->debug("decode command: $dec");
@@ -386,6 +401,7 @@ sub conn_handle_request {
         /^FLUSH$/ && do {
             my $dfh = $conn->{decoder_fh};
             print $dfh "flush\n";
+	    $conn->{player}->execute( [ 'pause' ] );
             last;
         };
         /^TEARDOWN$/ && do {
@@ -396,7 +412,7 @@ sub conn_handle_request {
         };
         /^SET_PARAMETER$/ && do {
 	    if ( $req->header('Content-Type') eq "text/parameters" ) {
-            	my @lines = split /[\r\n]+/, $req->content;
+            	my @lines = split(/[\r\n]+/, $req->content);
                 	$log->debug("SET_PARAMETER req: " . $req->content);
             	my %content = map { /^(\S+): (.+)/; (lc $1, $2) } @lines;
             	my $cfh = $conn->{decoder_fh};
@@ -412,7 +428,10 @@ sub conn_handle_request {
 			my ( $start, $curr, $end ) = split( /\//, $content{progress} );
 			$positionRealTime = ( $curr - $start ) / $samplingRate;
 			$durationRealTime = ( $end - $start ) / $samplingRate;
-			
+
+			$airTunesMetaData{duration} = $durationRealTime;
+			$airTunesMetaData{position} = $positionRealTime;
+
 			$log->debug("Duration: ". $durationRealTime ."; Position: ". $positionRealTime);
             	} 
 		else {
@@ -420,9 +439,14 @@ sub conn_handle_request {
 		}
 	    }
 	    elsif ( $req->header('Content-Type') eq "application/x-dmap-tagged" ) {
-		$log->debug("TAG DATA found.");
+		my $dmapData = $req->content;
+		my $dmapXML = Net::DAAP::DMAP->dmap_to_xml($dmapData);
+		
+		$log->debug("DMAP DATA found.");
+		$log->debug($dmapXML);
 	    }
 	    elsif ( $req->header('Content-Type') eq "image/jpeg" ) {
+		my $imageData = $req->content;
 		$log->debug("IMAGE DATA found.");
             }
 	    else {

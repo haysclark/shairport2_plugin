@@ -1,4 +1,4 @@
-package Slim::Plugin::ShairTunes::AIRPLAY;
+package Plugins::ShairTunes::AIRPLAY;
 
 use strict;
 use base qw(Slim::Player::Pipeline);
@@ -72,13 +72,27 @@ sub contentType
 sub getMetadataFor {
 	my ( $class, $client, $url, $forceCurrent ) = @_;
 
+	my %metaData = Plugins::ShairTunes::Plugin->getAirTunesMetaData();
+	my $metaArtist = $metaData{artist};
+	my $metaTitle = $metaData{title};
+	my $metaAlbum = $metaData{album};
+	my $metaBitRate = $metaData{bitrate};
+	my $metaCover = $metaData{cover};
+	my $metaDuration = $metaData{duration};
+	my $metaPosition = $metaData{position};
+
+	$client->streamingSong->duration($metaDuration);
+	$client->playingSong()->startOffset($metaPosition);
+
 	return {
-		title    =>  $Slim::Plugin::ShairTunes::Plugin::title, 
-		artist   =>  $Slim::Plugin::ShairTunes::Plugin::artist,
-		album    =>  $Slim::Plugin::ShairTunes::Plugin::album,
-		bitrate  =>  "CD ",
-		type   => 'ShairTunes',
-	};
+		artist => $metaArtist,
+		title => $metaTitle,
+		album => $metaAlbum,
+		bitrate => $metaBitRate,
+		cover => $metaCover,
+		type => 'ShairTunes Stream',
+	}
+
 }
 
 
