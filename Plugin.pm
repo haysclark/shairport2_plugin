@@ -13,15 +13,13 @@ use IO::Socket::INET6;
 use Crypt::OpenSSL::RSA;
 use Net::SDP;
 use IPC::Open2;
-use Net::DAAP::DMAP qw(:all);
 
 use Plugins::ShairTunes::AIRPLAY;
 
 # create log categogy before loading other modules
 my $log = Slim::Utils::Log->addLogCategory({
 	'category'     => 'plugin.shairtunes',
-#	'defaultLevel' => 'ERROR',
-	'defaultLevel' => 'INFO',
+	'defaultLevel' => 'ERROR',
 	'description'  => getDisplayName(),
 });
 
@@ -38,7 +36,7 @@ my ($volume, $directory, $file) = File::Spec->splitpath(__FILE__);
 if ( $Config{'archname'} =~ /solaris/ ) {
 	$hairtunes_cli = $directory. "helperBinaries/shairport_helper-i86pc-solaris";
 }
-elsif ( $Config{'archname'} =~ /solaris/ ) {
+elsif ( $Config{'archname'} =~ /linux/ ) {
 	$hairtunes_cli = $directory. "helperBinaries/shairport_helper-x64-linux";
 }
 else {
@@ -242,11 +240,11 @@ sub conn_handle_data {
         undef $conn->{req_need};
         return;
     }
-   
-    read($socket, my $data, 4096);
-    $conn->{data} .= $data;
 
-    $log->debug("\n\nSTART_HTTP_MESSAGE\n\n". $data ."\n\nEND_HTTP_MESSAGE\n\n");
+	read($socket, my $data, 4096);
+    $conn->{data} .= $data;
+	
+    $log->debug("\n\nITUNES_MESSAGE_START:\n". $data ."\nITUNES_MESSAGE_END\n\n");
 
     if ($conn->{data} =~ /(\r\n\r\n|\n\n|\r\r)/) {
         my $req_data = substr($conn->{data}, 0, $+[0], '');
@@ -280,7 +278,7 @@ sub conn_handle_request {
     my ($socket, $conn) = @_;
 
     my $req = $conn->{req};
-    my $clen = $req->header('Content-Length') // 0;
+    my $clen = $req->header('content-length') // 0;
     if ($clen > 0 && !length($req->content)) {
         $conn->{req_need} = $clen;
         return; # need more!
@@ -303,7 +301,7 @@ sub conn_handle_request {
             $data .= ip6bin($ip);
         }
 
-	my @hw_addr = +(map(ord, split(//, md5($conn->{player}->name()))))[0..5];
+		my @hw_addr = +(map(ord, split(//, md5($conn->{player}->name()))))[0..5];
 
         $data .= join '', map { chr } @hw_addr;
         $data .= chr(0) x (0x20-length($data));
@@ -412,7 +410,7 @@ sub conn_handle_request {
         /^FLUSH$/ && do {
             my $dfh = $conn->{decoder_fh};
             print $dfh "flush\n";
-	    $conn->{player}->execute( [ 'pause' ] );
+			$conn->{player}->execute( [ 'pause' ] );
             last;
         };
         /^TEARDOWN$/ && do {
@@ -422,7 +420,7 @@ sub conn_handle_request {
             last;
         };
         /^SET_PARAMETER$/ && do {
-	    if ( $req->header('Content-Type') eq "text/parameters" ) {
+			if ( $req->header('Content-Type') eq "text/parameters" ) {
             	my @lines = split(/[\r\n]+/, $req->content);
                 	$log->debug("SET_PARAMETER req: " . $req->content);
             	my %content = map { /^(\S+): (.+)/; (lc $1, $2) } @lines;
@@ -434,35 +432,30 @@ sub conn_handle_request {
                 	$conn->{player}->execute( [ 'mixer', 'volume', $percent ] );
                             
                 	$log->debug("sending-> vol: ". $percent);
-		}
-		elsif (exists $content{progress}) {
-			my ( $start, $curr, $end ) = split( /\//, $content{progress} );
-			$positionRealTime = ( $curr - $start ) / $samplingRate;
-			$durationRealTime = ( $end - $start ) / $samplingRate;
+				}
+				elsif (exists $content{progress}) {
+					my ( $start, $curr, $end ) = split( /\//, $content{progress} );
+					$positionRealTime = ( $curr - $start ) / $samplingRate;
+					$durationRealTime = ( $end - $start ) / $samplingRate;
 
-			$airTunesMetaData{duration} = $durationRealTime;
-			$airTunesMetaData{position} = $positionRealTime;
+					$airTunesMetaData{duration} = $durationRealTime;
+					$airTunesMetaData{position} = $positionRealTime;
 
-			$log->debug("Duration: ". $durationRealTime ."; Position: ". $positionRealTime);
-            	} 
-		else {
-                	$log->error("unable to perform content for req: " . $req->content);
-		}
-	    }
-	    elsif ( $req->header('Content-Type') eq "application/x-dmap-tagged" ) {
-		my $dmapData = $req->content;
-		my $dmapXML = Net::DAAP::DMAP->dmap_to_xml($dmapData);
-		
-		$log->debug("DMAP DATA found.");
-		$log->debug($dmapXML);
-	    }
-	    elsif ( $req->header('Content-Type') eq "image/jpeg" ) {
-		my $imageData = $req->content;
-		$log->debug("IMAGE DATA found.");
-            }
-	    else {
-	    	$log->error("unable to perform content");
-            }
+					$log->debug("Duration: ". $durationRealTime ."; Position: ". $positionRealTime);
+				} 
+				else {
+					$log->error("unable to perform content for req: " . $req->content);
+				}
+			}
+			elsif ( $req->header('Content-Type') eq "application/x-dmap-tagged" ) {
+				$log->debug("DMAP DATA found.");
+			}
+			elsif ( $req->header('Content-Type') eq "image/jpeg" ) {
+				$log->debug("IMAGE DATA found.");
+			}
+			else {
+				$log->error("unable to perform content");
+			}
             last;
         };
         /^GET_PARAMETER$/ && do {
@@ -478,10 +471,10 @@ sub conn_handle_request {
         die("Unknown method: $_");
     }
 
-    $log->debug($resp->as_string("\r\n"));
+    $log->debug("\n\nPLAYER_MESSAGE_START: \n" .$resp->as_string("\r\n"). "\nPLAYER_MESSAGE_END\n\n");
     
     print $socket $resp->as_string("\r\n");
-    $socket->flush;
+    #$socket->flush;
 }
 
 
