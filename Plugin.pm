@@ -131,8 +131,7 @@ sub getDisplayName()
 
 
 sub createListenPort()
-{
-    my $port = 5123;
+{   
     my $listen;
 
     $listen   = new IO::Socket::INET6(Listen => 1,
@@ -199,7 +198,7 @@ sub handleSocketConnect()
     my $player = $players{$socket};
 
     my $new = $socket->accept;
-    $log->info("New connection from".$new->peerhost);
+    $log->info("New connection from ".$new->peerhost);
     
     $new->blocking(0);
     $connections{$new} = {socket => $socket, player => $player};
@@ -241,16 +240,18 @@ sub conn_handle_data {
         return;
     }
 
-	read($socket, my $data, 4096);
+	my $data;
+	read($socket, $data, 4096, length($data));	
     $conn->{data} .= $data;
 	
-    $log->debug("\n\nITUNES_MESSAGE_START:\n". $data ."\nITUNES_MESSAGE_END\n\n");
+	$log->debug("\n\nITUNES_MESSAGE_START:\n". $conn->{data} ."ITUNES_MESSAGE_END\n\n");
 
     if ($conn->{data} =~ /(\r\n\r\n|\n\n|\r\r)/) {
         my $req_data = substr($conn->{data}, 0, $+[0], '');
-	#$log->debug("\n\nSTART_HTTP_HEADER\n". $req_data . "END_HTTP_HEADER\n\n");
+		$log->debug("\n\nITUNES_HEADER_START:\n". $req_data ."ITUNES_HEADER_END\n\n");
         $conn->{req} = HTTP::Request->parse($req_data);
-        $log->debug("REQ: ".$conn->{req}->method);
+        $log->debug("ITUNES_REQUEST_METHOD: ".$conn->{req}->method);
+		$log->debug("\n\nITUNES_CONTENT_START:\n". $conn->{data} ."ITUNES_CONTENT_END\n\n");
         conn_handle_request($socket, $conn);
         conn_handle_data($socket) if length($conn->{data});
     }
@@ -278,7 +279,7 @@ sub conn_handle_request {
     my ($socket, $conn) = @_;
 
     my $req = $conn->{req};
-    my $clen = $req->header('content-length') // 0;
+    my $clen = $req->header('Content-Length') // 0;
     if ($clen > 0 && !length($req->content)) {
         $conn->{req_need} = $clen;
         return; # need more!
