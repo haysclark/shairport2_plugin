@@ -240,8 +240,7 @@ sub conn_handle_data {
         return;
     }
 
-	my $data;
-	read($socket, $data, 4096, length($data));	
+	read($socket, $data, 4096, 0);	
     $conn->{data} .= $data;
 	
 	$log->debug("\n\nITUNES_MESSAGE_START:\n". $conn->{data} ."ITUNES_MESSAGE_END\n\n");
