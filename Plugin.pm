@@ -147,7 +147,7 @@ sub publishPlayer() {
                     join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
                     "_raop._tcp",
                     $port,
-                    "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1");
+                    "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=0,1,2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1");
           };
           { exec(
                     'dns-sd', '-R',
@@ -155,14 +155,14 @@ sub publishPlayer() {
                     "_raop._tcp",
                     ".",
                     $port,
-                    "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1");
+                    "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=0,1,2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1");
           };
           { exec(
                     'mDNSPublish',
                     join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
                     "_raop._tcp",
                     $port,
-                    "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1");
+                    "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=0,1,2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1");
           };
           die "could not run avahi-publish-service nor dns-sd nor mDNSPublish";
      }
@@ -197,59 +197,67 @@ sub handleSocketRead() {
           delete $connections{$socket} 
      }
      else {
-          my $conn = $connections{$socket};
-          
-          read($socket, my $incoming, 4096, 0);
-          my $buffer .= $incoming;
-                    
-          my $contentBody;
-          my $contentLength = 0;
-          ### Has the data a new line -> then we have the header
-          if ($buffer =~ /\r\n\r\n/sm) {
-               $log->debug("Got the header.");
-               if ( $buffer =~ /Content-Length:\s(\d+)/) {
-                    $contentLength = $1;
-               }
-               $log->debug("Content Length is: " .$contentLength);
-               $buffer =~ /(.*)\r\n\r\n/sm;
-               #$log->debug("Header is:\n" .$1);
-          }
-          else {
-               ### Header missing -> Back to LMS.
-               $log->debug("Header not yet completely received. Waiting...");
-               return;
-          }
-          ### Check length of data after new lines -> Content-Length
-          if ($buffer =~ /\r\n\r\n(.*)/sm) {
-               $contentBody = $1;
-               $log->debug("Content Length received: " .length($contentBody));
-               ### if the content-length does not match -> return to LMS
-               if(length($contentBody) != $contentLength) {
-                    ### Content missing -> Back to LMS.
-                    $log->debug("Content not yet completely received. Waiting...");
-                    return;
-               }
-               else {
-                    $log->debug("Got the content.");
-                    $buffer =~ /\r\n\r\n(.*)/sm;
-                    #$log->debug("Content is:\n" .$1);
-                    ### We are complete -> Data Handling...
-                    $log->debug("And now to the data handler...");
-
-                    ### START: Not yet updated.
-                    $conn->{data} = $buffer;                  
-                    conn_handle_data($socket, $conn);
-                    ### END: Not yet updated.
-               }
-          }
-          else {
-               ### Back to LMS
-               return;
-          }
+          conn_handle_data($socket);
      }
 }
 
 sub conn_handle_data {
+     my $socket = shift;
+     my $conn = $connections{$socket};
+                  
+     my $contentBody;
+     my $contentLength = 0;
+     my $bytesToRead = 4096;
+     my $contentIncomplete = 1;
+     my $buffer;
+     
+     while($contentIncomplete == 1) {
+     read($socket, my $incoming, $bytesToRead, 0);
+     $buffer .= $incoming;
+                    
+     ### Has the data a new line -> then we have the header
+     if ($buffer =~ /\r\n\r\n/sm) {
+          $log->debug("Got the header.");
+          if ( $buffer =~ /Content-Length:\s(\d+)/) {
+               $contentLength = $1;
+          }
+          $log->debug("Content Length is: " .$contentLength);
+          $buffer =~ /(.*)\r\n\r\n/sm;
+          #$log->debug("Header is:\n" .$1);
+     }
+     else {
+          ### Header missing -> Back to LMS.
+          $log->debug("Header not yet completely received. Waiting...");
+     }
+     ### Check length of data after new lines -> Content-Lengths
+     if ($buffer =~ /\r\n\r\n(.*)/sm) {
+          $contentBody = $1;
+          $log->debug("Content Length received: " .length($contentBody));
+          ### if the content-length does not match -> return to LMS
+          if(length($contentBody) != $contentLength) {
+               ### Content missing -> Back to LMS.
+               $log->debug("Content not yet completely received. Waiting...");
+               ### In the next loop just read whats missing.
+               $bytesToRead = $contentLength - length($contentBody);
+          }
+          else {
+               $log->debug("Got the content.");
+               $buffer =~ /\r\n\r\n(.*)/sm;
+               #$log->debug("Content is:\n" .$1);
+               ### We are complete -> Data Handling...
+               last;
+          }
+     }
+     }
+     $log->debug("And now to the request handler...");
+     ### START: Not yet updated.
+     $conn->{data} = $buffer;                 
+     conn_handle_interface($socket, $conn);
+     ### END: Not yet updated.
+}
+
+### Interface to original request code.
+sub conn_handle_interface {
      my $socket = shift;
      my $conn = $connections{$socket};
 
