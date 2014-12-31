@@ -90,6 +90,7 @@ sub getMetadataFor {
 		album => $metaAlbum,
 		bitrate => $metaBitRate,
 		cover => $metaCover,
+          icon => $metaCover,
 		type => 'ShairTunes Stream',
 	}
 

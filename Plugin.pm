@@ -18,7 +18,6 @@ use Crypt::OpenSSL::RSA;
 use Net::SDP;
 use IPC::Open2;
 
-
 # create log categogy before loading other modules
 my $log = Slim::Utils::Log->addLogCategory({
      'category'     => 'plugin.shairtunes',
@@ -308,7 +307,7 @@ sub conn_handle_request {
         if ($ip =~ /((\d+\.){3}\d+)$/) { # IPv4
             $data .= join '', map { chr } split(/\./, $1);
         } else {
-            $data .= Plugins::ShairTunes::Utils->ip6bin($ip);
+            $data .= Plugins::ShairTunes::Utils::ip6bin($ip);
         }
 
         my @hw_addr = +(map(ord, split(//, md5($conn->{player}->name()))))[0..5];
@@ -343,9 +342,6 @@ sub conn_handle_request {
                 my $sdp = Net::SDP->new($req->content);
                 my $audio = $sdp->media_desc_of_type('audio');
 
-                print $audio->as_string();
-                print $audio->attribute('aesiv');
-
                 die("no AESIV") unless my $aesiv = decode_base64($audio->attribute('aesiv'));
                 die("no AESKEY") unless my $rsaaeskey = decode_base64($audio->attribute('rsaaeskey'));
                 $rsa->use_pkcs1_oaep_padding;
@@ -376,7 +372,7 @@ sub conn_handle_request {
                 dport   => $dport,
             );
 
-            my $dec = '"' . Plugins::ShairTunes::Utils->helperBinary() . '"' . join(' ', '', map { sprintf "%s '%s'", $_, $dec_args{$_} } keys(%dec_args));
+            my $dec = '"' . Plugins::ShairTunes::Utils::helperBinary() . '"' . join(' ', '', map { sprintf "%s '%s'", $_, $dec_args{$_} } keys(%dec_args));
             $log->debug("decode command: $dec");
             
             my $decoder = open2(my $dec_out, my $dec_in, $dec);
@@ -458,10 +454,25 @@ sub conn_handle_request {
 				}
 			}
 			elsif ( $req->header('Content-Type') eq "application/x-dmap-tagged" ) {
-				$log->debug("DMAP DATA found.");
+				$log->debug("DMAP DATA found. Length: " .length($req->content));
+                    my %dmapData = Plugins::ShairTunes::Utils::getDmapData($req->content);
+                    $airTunesMetaData{artist} = $dmapData{artist};
+                    print "ARTIST: " .$dmapData{artist};
+                    $airTunesMetaData{album} = $dmapData{album};
+                    $airTunesMetaData{title} = $dmapData{title};
+                    
 			}
 			elsif ( $req->header('Content-Type') eq "image/jpeg" ) {
 				$log->debug("IMAGE DATA found.");
+                    my ($volume, $directory, $file) = File::Spec->splitpath(__FILE__);
+                    my $fileName = $directory. "HTML/EN/plugins/ShairTunes/html/images/cover.jpg";
+                    
+                    #open(fileHandle, '>', $fileName);
+                    #binmode(fileHandle);
+                    #print(fileHandle $req->content);
+                    #close(fileHandle);
+                    
+                    #$airTunesMetaData{cover} = $fileName;
 			}
 			else {
 				$log->error("unable to perform content");
@@ -487,6 +498,25 @@ sub conn_handle_request {
     $socket->flush;
 }
 
+sub str_hexdump {
+    my $str = ref $_[0] ? ${$_[0]} : $_[0];
+
+    return "[ZERO-LENGTH STRING]\n" unless length $str;
+
+    # split input up into 16-byte chunks:
+    my @chunks = $str =~ /([\0-\377]{1,16})/g;
+    # format and print:
+    my @print;
+    for (@chunks) {
+        my $hex = unpack "H*", $_;
+        tr/ -~/./c;                   # mask non-print chars
+        $hex =~ s/(..)(?!$)/$1 /g;      # insert spaces in hex
+        # make sure our hex output has the correct length
+        $hex .= ' ' x ( length($hex) < 48 ? 48 - length($hex) : 0 );
+        push @print, "$hex $_\n";
+    }
+    wantarray ? @print : join '', @print;
+}
 
 1;
 

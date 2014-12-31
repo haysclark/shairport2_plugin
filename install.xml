@@ -10,7 +10,7 @@
 	<defaultState>enabled</defaultState>
 	<homepageURL></homepageURL>
 	<optionsURL></optionsURL>
-	<icon></icon>
+	<icon>plugins/ShairTunes/html/images/icon.png</icon>
 	<type>2</type><!-- type=extension -->
 	<targetApplication>
 		<id>Squeezecenter</id>
