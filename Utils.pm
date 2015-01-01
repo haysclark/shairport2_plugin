@@ -2,6 +2,7 @@ package Plugins::ShairTunes::Utils;
 
 use strict;
 use Config;
+use Digest::MD5 qw(md5 md5_hex);
 
 my %dmapData = ( 
           artist => '',
@@ -38,6 +39,24 @@ sub ip6bin {
      }
      pack('S>*', map { hex } (@left, @mid, @right));
 } 
+
+sub digest_ok {
+    my ($req, $conn) = @_;
+    my $authz = $req->header('Authorization');
+    return 0 unless $authz =~ s/^Digest\s+//i;
+    return 0 unless length $conn->{nonce};
+    my @authz = split /,\s*/, $authz;
+    my %authz = map { /(.+)="(.+)"/; ($1, $2) } @authz;
+
+    # not a standard digest - uses capital hex digits, in conflict with the RFC
+    my $digest = uc md5_hex (
+        uc(md5_hex($authz{username} . ':' . $authz{realm} . ':' . $conn->{password}))
+        . ':' . $authz{nonce} . ':' .
+        uc(md5_hex($req->method . ':' . $authz{uri}))
+    );
+
+    return $digest eq $authz{response};
+}
 
 sub getDmapData {
      my $buf = shift;

@@ -84,6 +84,8 @@ sub getMetadataFor {
 	$client->streamingSong->duration($metaDuration);
 	$client->playingSong()->startOffset($metaPosition);
 
+     $metaCover = Plugins::ShairTunes::Plugin->_pluginDataFor('icon');
+     
 	return {
 		artist => $metaArtist,
 		title => $metaTitle,

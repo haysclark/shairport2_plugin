@@ -7,12 +7,18 @@ use Plugins::ShairTunes::Utils;
 
 use base qw(Slim::Plugin::OPMLBased);
 
-use Config;
-use Digest::MD5 qw(md5 md5_hex);
-use MIME::Base64;
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
 use Slim::Utils::Misc;
+use Slim::Utils::Network;
+use Slim::Networking::Async;
+use Slim::Networking::Async::Socket;
+use Slim::Networking::Async::Socket::HTTP;
+
+use Config;
+use Digest::MD5 qw(md5 md5_hex);
+use MIME::Base64;
+
 use IO::Socket::INET6;
 use Crypt::OpenSSL::RSA;
 use Net::SDP;
@@ -70,7 +76,7 @@ sub initPlugin() {
           \&playerSubscriptionChange,
           [['client'],['new','reconnect','disconnect']]
      );
-
+     
      return 1;
 }
 
@@ -79,7 +85,6 @@ sub getDisplayName() {
 }
 
 sub shutdownPlugin() {
-#     Slim::Control::Request::unsubscribe(\&pauseCallback);
      return;
 }
 
@@ -127,8 +132,7 @@ sub createListenPort() {
                          Listen => 1,
                          ReuseAddr => 1,
                          Proto => 'tcp',
-                         );
-                         
+                         );                         
     return $listen;
 }
 
@@ -173,10 +177,12 @@ sub handleSocketConnect() {
      my $socket = shift;
      my $player = $players{$socket};
 
+     my $bytesToRead = 4096;
+     
      my $new = $socket->accept;
      $log->info("New connection from ".$new->peerhost);
     
-     $new->blocking(0);
+     Slim::Utils::Network::blocking( $new, 0 );
      $connections{$new} = {socket => $socket, player => $player};
 
      # Add us to the select loop so we get notified
@@ -192,65 +198,66 @@ sub handleSocketRead() {
           Slim::Networking::Select::removeRead($socket);	
 
           close $socket;
-        
           delete $connections{$socket} 
      }
      else {
-          conn_handle_data($socket);
+          conn_read_data($socket);
      }
 }
 
-sub conn_handle_data {
+sub conn_read_data {
      my $socket = shift;
+     
      my $conn = $connections{$socket};
                   
      my $contentBody;
      my $contentLength = 0;
-     my $bytesToRead = 4096;
-     my $contentIncomplete = 1;
      my $buffer;
      
-     while($contentIncomplete == 1) {
-     read($socket, my $incoming, $bytesToRead, 0);
-     $buffer .= $incoming;
-                    
-     ### Has the data a new line -> then we have the header
-     if ($buffer =~ /\r\n\r\n/sm) {
-          $log->debug("Got the header.");
-          if ( $buffer =~ /Content-Length:\s(\d+)/) {
-               $contentLength = $1;
-          }
-          $log->debug("Content Length is: " .$contentLength);
-          $buffer =~ /(.*)\r\n\r\n/sm;
-          #$log->debug("Header is:\n" .$1);
-     }
-     else {
-          ### Header missing -> Back to LMS.
-          $log->debug("Header not yet completely received. Waiting...");
-     }
-     ### Check length of data after new lines -> Content-Lengths
-     if ($buffer =~ /\r\n\r\n(.*)/sm) {
-          $contentBody = $1;
-          $log->debug("Content Length received: " .length($contentBody));
-          ### if the content-length does not match -> return to LMS
-          if(length($contentBody) != $contentLength) {
-               ### Content missing -> Back to LMS.
-               $log->debug("Content not yet completely received. Waiting...");
-               ### In the next loop just read whats missing.
-               $bytesToRead = $contentLength - length($contentBody);
+     my $bytesToRead = 4096;
+     
+     ### This while loop is a workaround until this thing is implemented correctly into lms
+     while(42) {
+          read($socket, my $incoming, $bytesToRead , 0);
+          $buffer .= $incoming;
+                         
+          ### Has the data a new line -> then we have the header
+          if ($buffer =~ /\r\n\r\n/sm) {
+               $log->debug("Got the header.");
+               if ( $buffer =~ /Content-Length:\s(\d+)/) {
+                    $contentLength = $1;
+               }
+               $log->debug("Content Length is: " .$contentLength);
+               $buffer =~ /(.*)\r\n\r\n/sm;
+               #$log->debug("Header is:\n" .$1);
           }
           else {
-               $log->debug("Got the content.");
-               $buffer =~ /\r\n\r\n(.*)/sm;
-               #$log->debug("Content is:\n" .$1);
-               ### We are complete -> Data Handling...
-               last;
+               ### Header missing -> Back to LMS.
+               $log->debug("Header not yet completely received. Waiting...");
           }
-     }
+          ### Check length of data after new lines -> Content-Lengths
+          if ($buffer =~ /\r\n\r\n(.*)/sm) {
+               $contentBody = $1;
+               $log->debug("Content Length received: " .length($contentBody));
+               ### if the content-length does not match -> return to LMS
+               if(length($contentBody) != $contentLength) {
+                    ### Content missing -> Back to LMS.
+                    $log->debug("Content not yet completely received. Waiting...");
+                    ### In the next loop just read whats missing.
+                    my $bytesToRead = $contentLength - length($contentBody);
+               }
+               else {
+                    $log->debug("Got the content.");
+                    $buffer =~ /\r\n\r\n(.*)/sm;
+                    #$log->debug("Content is:\n" .$1);
+                    ### We are complete -> Data Handling...
+                    last;
+               }
+          }
      }
      $log->debug("And now to the request handler...");
      ### START: Not yet updated.
-     $conn->{data} = $buffer;                 
+     $conn->{data} = $buffer;
      conn_handle_interface($socket, $conn);
      ### END: Not yet updated.
 }
@@ -271,24 +278,6 @@ sub conn_handle_interface {
     }
 }
 
-sub digest_ok {
-    my ($req, $conn) = @_;
-    my $authz = $req->header('Authorization');
-    return 0 unless $authz =~ s/^Digest\s+//i;
-    return 0 unless length $conn->{nonce};
-    my @authz = split /,\s*/, $authz;
-    my %authz = map { /(.+)="(.+)"/; ($1, $2) } @authz;
-
-    # not a standard digest - uses capital hex digits, in conflict with the RFC
-    my $digest = uc md5_hex (
-        uc(md5_hex($authz{username} . ':' . $authz{realm} . ':' . $conn->{password}))
-        . ':' . $authz{nonce} . ':' .
-        uc(md5_hex($req->method . ':' . $authz{uri}))
-    );
-
-    return $digest eq $authz{response};
-}
-
 sub conn_handle_request {
      my ($socket, $conn) = @_;
 
@@ -300,7 +289,7 @@ sub conn_handle_request {
 
     $resp->header('CSeq', $req->header('CSeq'));
     $resp->header('Audio-Jack-Status', 'connected; type=analog');
-
+    
     if (my $chall = $req->header('Apple-Challenge')) {
         my $data = decode_base64($chall);
         my $ip = $socket->sockhost;
@@ -322,7 +311,7 @@ sub conn_handle_request {
     }
 
     if (length $conn->{password}) {
-        if (!digest_ok($req, $conn)) {
+        if (!Plugins::ShairTunes::Utils::digest_ok($req, $conn)) {
             my $nonce = md5_hex(map { rand } 1..20);
             $conn->{nonce} = $nonce;
             my $apname = $conn->{player}->name();
@@ -455,11 +444,10 @@ sub conn_handle_request {
 			}
 			elsif ( $req->header('Content-Type') eq "application/x-dmap-tagged" ) {
 				$log->debug("DMAP DATA found. Length: " .length($req->content));
-                    my %dmapData = Plugins::ShairTunes::Utils::getDmapData($req->content);
-                    $airTunesMetaData{artist} = $dmapData{artist};
-                    print "ARTIST: " .$dmapData{artist};
-                    $airTunesMetaData{album} = $dmapData{album};
-                    $airTunesMetaData{title} = $dmapData{title};
+                    #my %dmapData = Plugins::ShairTunes::Utils::getDmapData($req->content);
+                    #$airTunesMetaData{artist} = $dmapData{artist};
+                    #$airTunesMetaData{album} = $dmapData{album};
+                    #$airTunesMetaData{title} = $dmapData{title};
                     
 			}
 			elsif ( $req->header('Content-Type') eq "image/jpeg" ) {
@@ -496,26 +484,7 @@ sub conn_handle_request {
     
     print $socket $resp->as_string("\r\n");
     $socket->flush;
-}
 
-sub str_hexdump {
-    my $str = ref $_[0] ? ${$_[0]} : $_[0];
-
-    return "[ZERO-LENGTH STRING]\n" unless length $str;
-
-    # split input up into 16-byte chunks:
-    my @chunks = $str =~ /([\0-\377]{1,16})/g;
-    # format and print:
-    my @print;
-    for (@chunks) {
-        my $hex = unpack "H*", $_;
-        tr/ -~/./c;                   # mask non-print chars
-        $hex =~ s/(..)(?!$)/$1 /g;      # insert spaces in hex
-        # make sure our hex output has the correct length
-        $hex .= ' ' x ( length($hex) < 48 ? 48 - length($hex) : 0 );
-        push @print, "$hex $_\n";
-    }
-    wantarray ? @print : join '', @print;
 }
 
 1;

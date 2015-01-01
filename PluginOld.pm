@@ -2,6 +2,9 @@ use strict;
 
 package Plugins::ShairTunes::Plugin;
 
+use Plugins::ShairTunes::AIRPLAY;
+use Plugins::ShairTunes::Utils;
+
 use base qw(Slim::Plugin::OPMLBased);
 
 use Config;
@@ -9,39 +12,24 @@ use Digest::MD5 qw(md5 md5_hex);
 use MIME::Base64;
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
+use Slim::Utils::Misc;
 use IO::Socket::INET6;
 use Crypt::OpenSSL::RSA;
 use Net::SDP;
 use IPC::Open2;
 
-use Plugins::ShairTunes::AIRPLAY;
-
 # create log categogy before loading other modules
 my $log = Slim::Utils::Log->addLogCategory({
-	'category'     => 'plugin.shairtunes',
-	'defaultLevel' => 'ERROR',
-	'description'  => getDisplayName(),
+     'category'     => 'plugin.shairtunes',
+     'defaultLevel' => 'ERROR',
+     'description'  => getDisplayName(),
 });
 
-
-use Slim::Utils::Misc;
 my $prefs = preferences('plugin.shairtunes');
 my $hairtunes_cli = "";
 
 my $airport_pem = join '', <DATA>;
 my $rsa = Crypt::OpenSSL::RSA->new_private_key($airport_pem) || die "RSA private key import failed";
-
-my ($volume, $directory, $file) = File::Spec->splitpath(__FILE__);
-
-if ( $Config{'archname'} =~ /solaris/ ) {
-	$hairtunes_cli = $directory. "helperBinaries/shairport_helper-i86pc-solaris";
-}
-elsif ( $Config{'archname'} =~ /linux/ ) {
-	$hairtunes_cli = $directory. "helperBinaries/shairport_helper-x64-linux";
-}
-else {
-	die("No shairport_helper binary for your system available.");
-}
 
 my %clients = ();
 my %sockets = ();
@@ -59,249 +47,251 @@ my $bitRate = $samplingRate." Hz";
 my $cover = ""; 
 
 my %airTunesMetaData = ( 
-	artist => $artist,
-	title => $title,
-	album => $album,
-	bitrate => $bitRate,
-	cover => $cover,
-	duration => $durationRealTime,
-	position => $positionRealTime,
+     artist => $artist,
+     title => $title,
+     album => $album,
+     bitrate => $bitRate,
+     cover => $cover,
+     duration => $durationRealTime,
+     position => $positionRealTime,
 );
 
-sub getAirTunesMetaData {
-	return %airTunesMetaData;
+sub getAirTunesMetaData() {
+     return %airTunesMetaData;
 }
 
-sub initPlugin {
-	my $class = shift;
+sub initPlugin() {
+     my $class = shift;
 
-	$log->info("Initialising " . $class->_pluginDataFor('version'));
+     $log->info("Initialising " . $class->_pluginDataFor('version'));
 
-        # Subscribe to player connect/disconnect messages
-        Slim::Control::Request::subscribe(
-                \&playerSubscriptionChange,
-                [['client'],['new','reconnect','disconnect']]
-        );
+     # Subscribe to player connect/disconnect messages
+     Slim::Control::Request::subscribe(
+          \&playerSubscriptionChange,
+          [['client'],['new','reconnect','disconnect']]
+     );
 
-#	Slim::Control::Request::subscribe( \&pauseCallback, [['pause']] );
+     return 1;
+}
 
-	return 1;
+sub getDisplayName() { 
+     return('PLUGIN_SHAIRTUNES')
+}
+
+sub shutdownPlugin() {
+     return;
 }
 
 sub playerSubscriptionChange {
-	my $request = shift;
-	my $client  = $request->client;
+     my $request = shift;
+     my $client  = $request->client;
 	
-	my $reqstr = $request->getRequestString();
-	my $clientname = $client->name();
+     my $reqstr = $request->getRequestString();
+     my $clientname = $client->name();
 
-	$log->debug("request=$reqstr client=$clientname");
+     $log->debug("request=$reqstr client=$clientname");
 	
-	if ( ($reqstr eq "client new") || ($reqstr eq "client reconnect") ) {
-	        $sockets{$client} = createListenPort();
-	        $players{$sockets{$client}} = $client;
+     if ( ($reqstr eq "client new") || ($reqstr eq "client reconnect") ) {
+          $sockets{$client} = createListenPort();
+          $players{$sockets{$client}} = $client;
 
-                if ($sockets{$client}) {
-                        # Add us to the select loop so we get notified
-                        Slim::Networking::Select::addRead($sockets{$client}, \&handleSocketConnect);
-                
-                        $clients{$client} = publishPlayer($clientname, "", $sockets{$client}->sockport());
-                } else {
-                        $log->error("could not create ShairTunes socket for $clientname");
-                        delete $sockets{$client}
-                }
-	} elsif ($reqstr eq "client disconnect") {
-                $log->debug("publisher for $clientname PID $clients{$client} will be terminated.");
-		system "kill $clients{$client}";
-                Slim::Networking::Select::removeRead($sockets{$client});
-        }
+          if ($sockets{$client}) {
+               # Add us to the select loop so we get notified
+               Slim::Networking::Select::addRead($sockets{$client}, \&handleSocketConnect);
+ 
+               $clients{$client} = publishPlayer($clientname, "", $sockets{$client}->sockport());
+          }
+          else {
+               $log->error("could not create ShairTunes socket for $clientname");
+               delete $sockets{$client}
+          }
+     } elsif ($reqstr eq "client disconnect") {
+          $log->debug("publisher for $clientname PID $clients{$client} will be terminated.");
+          system "kill $clients{$client}";
+          Slim::Networking::Select::removeRead($sockets{$client});
+     }
 }
 
+sub createListenPort() {   
+     my $listen;
 
-sub shutdownPlugin 
-{
-#	Slim::Control::Request::unsubscribe(\&pauseCallback);
- 	return;
+     $listen   = new IO::Socket::INET6(
+                         Listen => 1,
+                         Domain => AF_INET6,
+                         ReuseAddr => 1,
+                         Proto => 'tcp',
+                         );
+
+    $listen ||= new IO::Socket::INET(
+                         Listen => 1,
+                         ReuseAddr => 1,
+                         Proto => 'tcp',
+                         );
+                         
+    return $listen;
 }
 
-sub getDisplayName() 
-{ 
-	return('PLUGIN_SHAIRTUNES')
-}
-
-
-sub createListenPort()
-{   
-    my $listen;
-
-    $listen   = new IO::Socket::INET6(Listen => 1,
-                        Domain => AF_INET6,
-                        ReuseAddr => 1,
-                        Proto => 'tcp' );
-
-    $listen ||= new IO::Socket::INET(Listen => 1,
-                        ReuseAddr => 1,
-                        Proto => 'tcp' );
-
-    return $listen
-}
-
-sub publishPlayer()
-{
-	my ($apname, $password, $port) = @_;
-
-	my $pid = fork();
+sub publishPlayer() {
+     my ($apname, $password, $port) = @_;
+     
+     my $pid = fork();
         
-	my $pw_clause = (length $password) ? "pw=true" : "pw=false";
-	my @hw_addr = +(map(ord, split(//, md5($apname))))[0..5];
+     my $pw_clause = (length $password) ? "pw=true" : "pw=false";
+     my @hw_addr = +(map(ord, split(//, md5($apname))))[0..5];
 
-        if ($pid==0) {
-            { exec 'avahi-publish-service',
-                join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
-                "_raop._tcp",
-                 $port,
-                "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1"; };
-            { exec 'dns-sd', '-R',
-                join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
-                "_raop._tcp",
-                ".",
-                 $port,
-                "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1"; };
-            { exec 'mDNSPublish',
-                join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
-                "_raop._tcp",
-                 $port,
-                "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1"; };
-            die "could not run avahi-publish-service nor dns-sd nor mDNSPublish";
-        }
-
-	return $pid
+     if ($pid==0) {
+          { exec( 
+                    'avahi-publish-service',
+                    join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
+                    "_raop._tcp",
+                    $port,
+                    "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=0,1,2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1");
+          };
+          { exec(
+                    'dns-sd', '-R',
+                    join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
+                    "_raop._tcp",
+                    ".",
+                    $port,
+                    "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=0,1,2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1");
+          };
+          { exec(
+                    'mDNSPublish',
+                    join('', map { sprintf "%02X", $_ } @hw_addr) . "\@$apname",
+                    "_raop._tcp",
+                    $port,
+                    "tp=UDP","sm=false","sv=false","ek=1","et=0,1","md=0,1,2","cn=0,1","ch=2","ss=16","sr=44100",$pw_clause,"vn=3","txtvers=1");
+          };
+          die "could not run avahi-publish-service nor dns-sd nor mDNSPublish";
+     }
+     
+     return $pid;
 }
 
-sub ip6bin {
-    my $ip = shift;
-    $ip =~ /((.*)::)?(.+)/;
-    my @left = split /:/, $2;
-    my @right = split /:/, $3;
-    my @mid;
-    my $pad = 8 - ($#left + $#right + 2);
-    if ($pad > 0) {
-        @mid = (0) x $pad;
-    }
+sub handleSocketConnect() {
+     my $socket = shift;
+     my $player = $players{$socket};
 
-    pack('S>*', map { hex } (@left, @mid, @right));
-} 
-
-sub handleSocketConnect()
-{
-    my $socket = shift;
-    my $player = $players{$socket};
-
-    my $new = $socket->accept;
-    $log->info("New connection from ".$new->peerhost);
+     my $new = $socket->accept;
+     $log->info("New connection from ".$new->peerhost);
     
-    $new->blocking(0);
-    $connections{$new} = {socket => $socket, player => $player};
+     $new->blocking(0);
+     $connections{$new} = {socket => $socket, player => $player};
 
-    # Add us to the select loop so we get notified
-    Slim::Networking::Select::addRead($new, \&handleSocketRead);
+     # Add us to the select loop so we get notified
+     Slim::Networking::Select::addRead($new, \&handleSocketRead);
 }
 
-sub handleSocketRead()
-{
-    my $socket = shift;
+sub handleSocketRead() {
+     my $socket = shift;
+     
+     if( eof($socket) ) {
+          $log->debug("Closed: ".$socket);
 
-    if (eof($socket)) {
-        $log->debug("Closed: ".$socket);
+          Slim::Networking::Select::removeRead($socket);	
 
-        Slim::Networking::Select::removeRead($socket);	
-
-        close $socket;
+          close $socket;
         
-        delete $connections{$socket} 
-    } else {
-        conn_handle_data($socket);
-    }
+          delete $connections{$socket} 
+     }
+     else {
+          conn_read_data($socket);
+     }
 }
 
-sub conn_handle_data {
-    my $socket = shift;
-
-    my $conn = $connections{$socket};
-
-    $log->debug("handle data 1");
-
-    if ($conn->{req_need}) {
-        if (length($conn->{data}) >= $conn->{req_need}) {
-            $conn->{req}->content(substr($conn->{data}, 0, $conn->{req_need}, ''));
-            conn_handle_request($socket, $conn);
-        }
-        undef $conn->{req_need};
-        return;
-    }
-
-	read($socket, $data, 4096, 0);	
-    $conn->{data} .= $data;
-	
-	$log->debug("\n\nITUNES_MESSAGE_START:\n". $conn->{data} ."ITUNES_MESSAGE_END\n\n");
-
-    if ($conn->{data} =~ /(\r\n\r\n|\n\n|\r\r)/) {
-        my $req_data = substr($conn->{data}, 0, $+[0], '');
-		$log->debug("\n\nITUNES_HEADER_START:\n". $req_data ."ITUNES_HEADER_END\n\n");
-        $conn->{req} = HTTP::Request->parse($req_data);
-        $log->debug("ITUNES_REQUEST_METHOD: ".$conn->{req}->method);
-		$log->debug("\n\nITUNES_CONTENT_START:\n". $conn->{data} ."ITUNES_CONTENT_END\n\n");
-        conn_handle_request($socket, $conn);
-        conn_handle_data($socket) if length($conn->{data});
-    }
+sub conn_read_data {
+     my $socket = shift;
+     my $conn = $connections{$socket};
+                  
+     my $contentBody;
+     my $contentLength = 0;
+     my $bytesToRead = 4096;
+     my $contentIncomplete = 1;
+     my $buffer;
+     
+     while($contentIncomplete == 1) {
+     read($socket, my $incoming, $bytesToRead, 0);
+     $buffer .= $incoming;
+                    
+     ### Has the data a new line -> then we have the header
+     if ($buffer =~ /\r\n\r\n/sm) {
+          $log->debug("Got the header.");
+          if ( $buffer =~ /Content-Length:\s(\d+)/) {
+               $contentLength = $1;
+          }
+          $log->debug("Content Length is: " .$contentLength);
+          $buffer =~ /(.*)\r\n\r\n/sm;
+          #$log->debug("Header is:\n" .$1);
+     }
+     else {
+          ### Header missing -> Back to LMS.
+          $log->debug("Header not yet completely received. Waiting...");
+     }
+     ### Check length of data after new lines -> Content-Lengths
+     if ($buffer =~ /\r\n\r\n(.*)/sm) {
+          $contentBody = $1;
+          $log->debug("Content Length received: " .length($contentBody));
+          ### if the content-length does not match -> return to LMS
+          if(length($contentBody) != $contentLength) {
+               ### Content missing -> Back to LMS.
+               $log->debug("Content not yet completely received. Waiting...");
+               ### In the next loop just read whats missing.
+               $bytesToRead = $contentLength - length($contentBody);
+          }
+          else {
+               $log->debug("Got the content.");
+               $buffer =~ /\r\n\r\n(.*)/sm;
+               #$log->debug("Content is:\n" .$1);
+               ### We are complete -> Data Handling...
+               last;
+          }
+     }
+     }
+     $log->debug("And now to the request handler...");
+     ### START: Not yet updated.
+     $conn->{data} = $buffer;                 
+     conn_handle_interface($socket, $conn);
+     ### END: Not yet updated.
 }
 
-sub digest_ok {
-    my ($req, $conn) = @_;
-    my $authz = $req->header('Authorization');
-    return 0 unless $authz =~ s/^Digest\s+//i;
-    return 0 unless length $conn->{nonce};
-    my @authz = split /,\s*/, $authz;
-    my %authz = map { /(.+)="(.+)"/; ($1, $2) } @authz;
+### Interface to original request code.
+sub conn_handle_interface {
+     my $socket = shift;
+     my $conn = $connections{$socket};
 
-    # not a standard digest - uses capital hex digits, in conflict with the RFC
-    my $digest = uc md5_hex (
-        uc(md5_hex($authz{username} . ':' . $authz{realm} . ':' . $conn->{password}))
-        . ':' . $authz{nonce} . ':' .
-        uc(md5_hex($req->method . ':' . $authz{uri}))
-    );
+     $log->debug("Handling Data...");
 
-    return $digest eq $authz{response};
+     if ($conn->{data} =~ /\r\n\r\n/) {
+          my $req_data = substr($conn->{data}, 0, $+[0], '');
+          $conn->{req} = HTTP::Request->parse($req_data);
+          
+          $conn->{req}->content($conn->{data});
+          conn_handle_request($socket, $conn);
+    }
 }
 
 sub conn_handle_request {
-    my ($socket, $conn) = @_;
+     my ($socket, $conn) = @_;
 
-    my $req = $conn->{req};
-    my $clen = $req->header('Content-Length') // 0;
-    if ($clen > 0 && !length($req->content)) {
-        $conn->{req_need} = $clen;
-        return; # need more!
-    }
-
-    my $resp = HTTP::Response->new(200);
+     my $req = $conn->{req};
+     my $resp = HTTP::Response->new(200);
     
     $resp->request($req);
     $resp->protocol($req->protocol);
 
     $resp->header('CSeq', $req->header('CSeq'));
     $resp->header('Audio-Jack-Status', 'connected; type=analog');
-
+    
     if (my $chall = $req->header('Apple-Challenge')) {
         my $data = decode_base64($chall);
         my $ip = $socket->sockhost;
         if ($ip =~ /((\d+\.){3}\d+)$/) { # IPv4
             $data .= join '', map { chr } split(/\./, $1);
         } else {
-            $data .= ip6bin($ip);
+            $data .= Plugins::ShairTunes::Utils::ip6bin($ip);
         }
 
-		my @hw_addr = +(map(ord, split(//, md5($conn->{player}->name()))))[0..5];
+        my @hw_addr = +(map(ord, split(//, md5($conn->{player}->name()))))[0..5];
 
         $data .= join '', map { chr } @hw_addr;
         $data .= chr(0) x (0x20-length($data));
@@ -313,7 +303,7 @@ sub conn_handle_request {
     }
 
     if (length $conn->{password}) {
-        if (!digest_ok($req, $conn)) {
+        if (!Plugins::ShairTunes::Utils::digest_ok($req, $conn)) {
             my $nonce = md5_hex(map { rand } 1..20);
             $conn->{nonce} = $nonce;
             my $apname = $conn->{player}->name();
@@ -332,9 +322,6 @@ sub conn_handle_request {
         /^ANNOUNCE$/ && do {
                 my $sdp = Net::SDP->new($req->content);
                 my $audio = $sdp->media_desc_of_type('audio');
-
-                print $audio->as_string();
-                print $audio->attribute('aesiv');
 
                 die("no AESIV") unless my $aesiv = decode_base64($audio->attribute('aesiv'));
                 die("no AESKEY") unless my $rsaaeskey = decode_base64($audio->attribute('rsaaeskey'));
@@ -366,7 +353,7 @@ sub conn_handle_request {
                 dport   => $dport,
             );
 
-            my $dec = '"' . $hairtunes_cli . '"' . join(' ', '', map { sprintf "%s '%s'", $_, $dec_args{$_} } keys(%dec_args));
+            my $dec = '"' . Plugins::ShairTunes::Utils::helperBinary() . '"' . join(' ', '', map { sprintf "%s '%s'", $_, $dec_args{$_} } keys(%dec_args));
             $log->debug("decode command: $dec");
             
             my $decoder = open2(my $dec_out, my $dec_in, $dec);
@@ -448,10 +435,25 @@ sub conn_handle_request {
 				}
 			}
 			elsif ( $req->header('Content-Type') eq "application/x-dmap-tagged" ) {
-				$log->debug("DMAP DATA found.");
+				$log->debug("DMAP DATA found. Length: " .length($req->content));
+                    my %dmapData = Plugins::ShairTunes::Utils::getDmapData($req->content);
+                    $airTunesMetaData{artist} = $dmapData{artist};
+                    print "ARTIST: " .$dmapData{artist};
+                    $airTunesMetaData{album} = $dmapData{album};
+                    $airTunesMetaData{title} = $dmapData{title};
+                    
 			}
 			elsif ( $req->header('Content-Type') eq "image/jpeg" ) {
 				$log->debug("IMAGE DATA found.");
+                    my ($volume, $directory, $file) = File::Spec->splitpath(__FILE__);
+                    my $fileName = $directory. "HTML/EN/plugins/ShairTunes/html/images/cover.jpg";
+                    
+                    #open(fileHandle, '>', $fileName);
+                    #binmode(fileHandle);
+                    #print(fileHandle $req->content);
+                    #close(fileHandle);
+                    
+                    #$airTunesMetaData{cover} = $fileName;
 			}
 			else {
 				$log->error("unable to perform content");
@@ -471,12 +473,32 @@ sub conn_handle_request {
         die("Unknown method: $_");
     }
 
-    $log->debug("\n\nPLAYER_MESSAGE_START: \n" .$resp->as_string("\r\n"). "\nPLAYER_MESSAGE_END\n\n");
+    #$log->debug("\n\nPLAYER_MESSAGE_START: \n" .$resp->as_string("\r\n"). "\nPLAYER_MESSAGE_END\n\n");
     
     print $socket $resp->as_string("\r\n");
-    #$socket->flush;
+    $socket->flush;
+
 }
 
+sub str_hexdump {
+    my $str = ref $_[0] ? ${$_[0]} : $_[0];
+
+    return "[ZERO-LENGTH STRING]\n" unless length $str;
+
+    # split input up into 16-byte chunks:
+    my @chunks = $str =~ /([\0-\377]{1,16})/g;
+    # format and print:
+    my @print;
+    for (@chunks) {
+        my $hex = unpack "H*", $_;
+        tr/ -~/./c;                   # mask non-print chars
+        $hex =~ s/(..)(?!$)/$1 /g;      # insert spaces in hex
+        # make sure our hex output has the correct length
+        $hex .= ' ' x ( length($hex) < 48 ? 48 - length($hex) : 0 );
+        push @print, "$hex $_\n";
+    }
+    wantarray ? @print : join '', @print;
+}
 
 1;
 
