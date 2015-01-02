@@ -182,7 +182,8 @@ sub handleSocketConnect() {
      my $new = $socket->accept;
      $log->info("New connection from ".$new->peerhost);
     
-     Slim::Utils::Network::blocking( $new, 0 );
+     Slim::Utils::Network::blocking($new, 0);
+     ${*$new}{BYTESTOREAD} = $bytesToRead;
      $connections{$new} = {socket => $socket, player => $player};
 
      # Add us to the select loop so we get notified
@@ -214,10 +215,11 @@ sub conn_read_data {
      my $contentLength = 0;
      my $buffer;
      
-     my $bytesToRead = 4096;
+#     my $bytesToRead = 4096;
+     $bytesToRead = ${*$socket}{BYTESTOREAD}; 
      
      ### This while loop is a workaround until this thing is implemented correctly into lms
-     while(42) {
+#     while(42) {
           read($socket, my $incoming, $bytesToRead , 0);
           $buffer .= $incoming;
                          
@@ -251,10 +253,11 @@ sub conn_read_data {
                     $buffer =~ /\r\n\r\n(.*)/sm;
                     #$log->debug("Content is:\n" .$1);
                     ### We are complete -> Data Handling...
-                    last;
+                    $bytesToRead = ${*$socket}{BYTESTOREAD};
+#                    last;
                }
           }
-     }
+#     }
      $log->debug("And now to the request handler...");
      ### START: Not yet updated.
      $conn->{data} = $buffer;
