@@ -65,11 +65,11 @@ my %airTunesMetaData = (
     position => $positionRealTime,
 );
 
-sub getAirTunesMetaData() {
+sub getAirTunesMetaData {
     return %airTunesMetaData;
 }
 
-sub initPlugin() {
+sub initPlugin {
     my $class = shift;
 
     $log->info( "Initialising " . $class->_pluginDataFor( 'version' ) );
@@ -81,11 +81,11 @@ sub initPlugin() {
     return 1;
 }
 
-sub getDisplayName() {
+sub getDisplayName {
     return ( 'PLUGIN_SHAIRTUNES' );
 }
 
-sub shutdownPlugin() {
+sub shutdownPlugin {
     return;
 }
 
@@ -121,7 +121,7 @@ sub playerSubscriptionChange {
     }
 }
 
-sub createListenPort() {
+sub createListenPort {
     my $listen;
 
     $listen = new IO::Socket::INET6(
@@ -139,7 +139,7 @@ sub createListenPort() {
     return $listen;
 }
 
-sub publishPlayer() {
+sub publishPlayer {
     my ( $apname, $password, $port ) = @_;
 
     my $pid = fork();
@@ -194,7 +194,7 @@ sub publishPlayer() {
     return $pid;
 }
 
-sub handleSocketConnect() {
+sub handleSocketConnect {
     my $socket = shift;
     my $player = $players{$socket};
 
@@ -211,7 +211,7 @@ sub handleSocketConnect() {
     Slim::Networking::Select::addRead( $new, \&handleSocketRead );
 }
 
-sub handleSocketRead() {
+sub handleSocketRead {
     my $socket = shift;
 
     if ( eof( $socket ) ) {
@@ -405,11 +405,11 @@ sub conn_handle_request {
             die( "Expected port number from decoder; got $portdesc" ) unless $portdesc =~ /^port: (\d+)/;
             my $port = $1;
 
-            my $portdesc = <$dec_out>;
+            $portdesc = <$dec_out>;
             die( "Expected cport number from decoder; got $portdesc" ) unless $portdesc =~ /^cport: (\d+)/;
-            my $cport = $1;
+            $cport = $1;
 
-            my $portdesc = <$dec_out>;
+            $portdesc = <$dec_out>;
             die( "Expected hport number from decoder; got $portdesc" ) unless $portdesc =~ /^hport: (\d+)/;
             my $hport = $1;
 
