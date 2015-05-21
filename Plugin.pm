@@ -19,6 +19,9 @@ use Slim::Networking::Async::Socket::HTTP;
 use Config;
 use Digest::MD5 qw(md5 md5_hex);
 use MIME::Base64;
+use File::Spec;
+use POSIX qw(:errno_h);
+use Data::Dumper;
 
 use IO::Socket::INET6;
 use Crypt::OpenSSL::RSA;
@@ -198,13 +201,11 @@ sub handleSocketConnect {
     my $socket = shift;
     my $player = $players{$socket};
 
-    my $bytesToRead = 4096;
-
     my $new = $socket->accept;
     $log->info( "New connection from " . $new->peerhost );
 
+    # set socket to unblocking mode => 0
     Slim::Utils::Network::blocking( $new, 0 );
-    ${*$new}{BYTESTOREAD} = $bytesToRead;
     $connections{$new} = { socket => $socket, player => $player };
 
     # Add us to the select loop so we get notified
@@ -232,78 +233,54 @@ sub conn_read_data {
 
     my $conn = $connections{$socket};
 
-    my $contentBody;
     my $contentLength = 0;
-    my $buffer;
+    my $buffer        = "";
 
-    #     my $bytesToRead = 4096;
-    $bytesToRead = ${*$socket}{BYTESTOREAD};
+    my $bytesToRead = 256;
 
-    ### This while loop is a workaround until this thing is implemented correctly into lms
-    #     while(42) {
-    read( $socket, my $incoming, $bytesToRead, 0 );
-    $buffer .= $incoming;
+    # read header
+    while ( 1 ) {
+        my $ret = read( $socket, my $incoming, $bytesToRead );
+        next if !defined $ret && $! == EAGAIN;
+        $log->error( "Reading socket failed!: $!" ) if !defined $ret;
+        last if !$ret;    # ERROR or EOF
 
-    ### Has the data a new line -> then we have the header
-    if ( $buffer =~ /\r\n\r\n/sm ) {
-        $log->debug( "Got the header." );
-        if ( $buffer =~ /Content-Length:\s(\d+)/ ) {
-            $contentLength = $1;
-        }
+        $log->debug( "conn_read_data: read $ret bytes." );
+
+        $buffer .= $incoming;
+
+        last if ( $buffer =~ /\r\n\r\n/ );
+    }
+    my ( $header, $contentBody ) = split( /\r\n\r\n/, $buffer, 2 );
+
+    # get body length
+    if ( $header =~ /Content-Length:\s(\d+)/ ) {
+        $contentLength = $1;
         $log->debug( "Content Length is: " . $contentLength );
-        $buffer =~ /(.*)\r\n\r\n/sm;
-
-        #$log->debug("Header is:\n" .$1);
-    }
-    else {
-        ### Header missing -> Back to LMS.
-        $log->debug( "Header not yet completely received. Waiting..." );
-    }
-    ### Check length of data after new lines -> Content-Lengths
-    if ( $buffer =~ /\r\n\r\n(.*)/sm ) {
-        $contentBody = $1;
-        $log->debug( "Content Length received: " . length( $contentBody ) );
-        ### if the content-length does not match -> return to LMS
-        if ( length( $contentBody ) != $contentLength ) {
-            ### Content missing -> Back to LMS.
-            $log->debug( "Content not yet completely received. Waiting..." );
-            ### In the next loop just read whats missing.
-            my $bytesToRead = $contentLength - length( $contentBody );
-        }
-        else {
-            $log->debug( "Got the content." );
-            $buffer =~ /\r\n\r\n(.*)/sm;
-
-            #$log->debug("Content is:\n" .$1);
-            ### We are complete -> Data Handling...
-            $bytesToRead = ${*$socket}{BYTESTOREAD};
-
-            #                    last;
-        }
     }
 
-    #     }
-    $log->debug( "And now to the request handler..." );
+    $log->debug( "ContentBody length already received: " . length( $contentBody ) );
+
+    $bytesToRead = $contentLength - length( $contentBody );
+    while ( $bytesToRead > 0 ) {
+        $log->debug( "Content not yet completely received. Waiting..." );
+        ### In the next loop just read whats missing.
+        my $ret = read( $socket, my $incoming, $bytesToRead );
+        next if !defined $ret && $! == EAGAIN;
+        $log->error( "Reading socket failed!: $!" ) if !defined $ret;
+        last if !$ret;    # ERROR or EOF
+
+        $contentBody .= $incoming;
+        $bytesToRead = $contentLength - length( $contentBody );
+    }
+
+    $log->debug( "Handle request..." );
     ### START: Not yet updated.
-    $conn->{data} = $buffer;
-    conn_handle_interface( $socket, $conn );
+    $conn->{req} = HTTP::Request->parse( $header );
+    $conn->{req}->content( $contentBody );
+
+    conn_handle_request( $socket, $conn );
     ### END: Not yet updated.
-}
-
-### Interface to original request code.
-sub conn_handle_interface {
-    my $socket = shift;
-    my $conn   = $connections{$socket};
-
-    $log->debug( "Handling Data..." );
-
-    if ( $conn->{data} =~ /\r\n\r\n/ ) {
-        my $req_data = substr( $conn->{data}, 0, $+[0], '' );
-        $conn->{req} = HTTP::Request->parse( $req_data );
-
-        $conn->{req}->content( $conn->{data} );
-        conn_handle_request( $socket, $conn );
-    }
 }
 
 sub conn_handle_request {
