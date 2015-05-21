@@ -1,6 +1,7 @@
 package Plugins::ShairTunes2::Plugin;
 
-package Plugins::ShairTunes::Plugin;
+use strict;
+use warnings;
 
 use Plugins::ShairTunes2::AIRPLAY;
 use Plugins::ShairTunes2::Utils;

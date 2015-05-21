@@ -1,6 +1,8 @@
 package Plugins::ShairTunes2::Utils;
 
 use strict;
+use warnings;
+
 use Config;
 use Digest::MD5 qw(md5 md5_hex);
 

@@ -1,6 +1,7 @@
 package Plugins::ShairTunes2::AIRPLAY;
 
 use strict;
+use warnings;
 use base qw(Slim::Player::Pipeline);
 use Slim::Utils::Strings qw(string);
 use Slim::Utils::Misc;
