@@ -57,6 +57,12 @@ sub ip6bin {
     pack( 'S>*', map { hex } ( @left, @mid, @right ) );
 }
 
+sub imagekeyfrommeta {
+    my ( $airTunesMetaData ) = @_;
+
+    return uc md5_hex( $airTunesMetaData->{artist} . $airTunesMetaData->{album} . $airTunesMetaData->{title} );
+}
+
 sub digest_ok {
     my ( $req, $conn ) = @_;
     my $authz = $req->header( 'Authorization' );

@@ -16,6 +16,8 @@ use Slim::Networking::Async;
 use Slim::Networking::Async::Socket;
 use Slim::Networking::Async::Socket::HTTP;
 
+use Slim::Web::ImageProxy;
+
 use Config;
 use Digest::MD5 qw(md5 md5_hex);
 use MIME::Base64;
@@ -36,6 +38,12 @@ my $log = Slim::Utils::Log->addLogCategory(
         'description'  => getDisplayName(),
     }
 );
+
+my $cover_cache = '';
+my $cachedir    = preferences( 'server' )->get( 'cachedir' );
+if ( !-d File::Spec->catdir( $cachedir, "shairtunes" ) ) {
+    mkdir( File::Spec->catdir( $cachedir, "shairtunes" ) );
+}
 
 my $prefs         = preferences( 'plugin.shairtunes' );
 my $hairtunes_cli = "";
@@ -81,6 +89,13 @@ sub initPlugin {
     Slim::Control::Request::subscribe( \&playerSubscriptionChange,
         [ ['client'], [ 'new', 'reconnect', 'disconnect' ] ] );
 
+    $log->error( "ImageProxy registerHandler installed" );
+
+    Slim::Web::ImageProxy->registerHandler(
+        match => qr/shairtunes:image:/,
+        func  => \&_getcover,
+    );
+
     return 1;
 }
 
@@ -90,6 +105,23 @@ sub getDisplayName {
 
 sub shutdownPlugin {
     return;
+}
+
+sub _getcover {
+    my ( $url, $spec, $cb ) = @_;
+
+    # $url is aforementioned image URL
+    # $spec we don't need (yet)
+    # $cb is the callback to be called with the URL
+
+    my ( $track_id ) = $url =~ m|shairtunes:image:(.*?)$|i;
+
+    my $imagefilepath = File::Spec->catdir( $cachedir, 'shairtunes', $track_id . "_cover.jpg" );
+
+    $log->error( "_getcover called for $imagefilepath" );
+
+    # now return the URLified file path
+    return Slim::Utils::Misc::fileURLFromPath( $imagefilepath );
 }
 
 sub playerSubscriptionChange {
@@ -458,18 +490,59 @@ sub conn_handle_request {
 
                 $log->debug( "DMAP DATA found. Length: " . length( $req->content ) . " " . Dumper( \%dmapData ) );
 
+                my $hashkey       = Plugins::ShairTunes2::Utils::imagekeyfrommeta( \%airTunesMetaData );
+                my $imagefilepath = File::Spec->catdir( $cachedir, 'shairtunes', $hashkey . "_cover.jpg" );
+                my $imageurl      = "/imageproxy/shairtunes:image:" . $hashkey . "/cover.jpg";
+                if ( length $cover_cache ) {
+                    open( my $imgFH, '>' . $imagefilepath );
+                    binmode( $imgFH );
+                    print $imgFH $cover_cache;
+                    close( $imgFH );
+
+                    $log->debug( "IMAGE DATA COVER_CACHE found. " . $imagefilepath . " " . $imageurl );
+
+                    $airTunesMetaData{cover}        = $imageurl;
+                    $cover_cache                    = '';
+                    $airTunesMetaData{waitforcover} = 0;
+                }
+                elsif ( -e $imagefilepath ) {
+                    $airTunesMetaData{cover}        = $imageurl;
+                    $airTunesMetaData{waitforcover} = 0;
+                }
+                else {
+                    $airTunesMetaData{waitforcover} = 1;
+                    $airTunesMetaData{cover}        = '';
+                }
+
+                my $client = $conn->{player};
+                Slim::Control::Request::notifyFromArray( $client, ['newmetadata'] );
             }
             elsif ( $req->header( 'Content-Type' ) eq "image/jpeg" ) {
-                $log->debug( "IMAGE DATA found." );
-                my ( $volume, $directory, $file ) = File::Spec->splitpath( __FILE__ );
-                my $fileName = $directory . "HTML/EN/plugins/ShairTunes/html/images/cover.jpg";
 
-                #open(fileHandle, '>', $fileName);
-                #binmode(fileHandle);
-                #print(fileHandle $req->content);
-                #close(fileHandle);
+                if ( $airTunesMetaData{waitforcover} && length $airTunesMetaData{title} ) {
+                    $cover_cache = '';
+                    $airTunesMetaData{waitforcover} = 0;
 
-                #$airTunesMetaData{cover} = $fileName;
+                    my $hashkey       = Plugins::ShairTunes2::Utils::imagekeyfrommeta( \%airTunesMetaData );
+                    my $imagefilepath = File::Spec->catdir( $cachedir, 'shairtunes', $hashkey . "_cover.jpg" );
+                    my $imageurl      = "/imageproxy/shairtunes:image:" . $hashkey . "/cover.jpg";
+
+                    open( my $imgFH, '>' . $imagefilepath );
+                    binmode( $imgFH );
+                    print $imgFH $req->content;
+                    close( $imgFH );
+
+                    $log->debug( "IMAGE DATA found. " . $imagefilepath . " " . $imageurl );
+
+                    $airTunesMetaData{cover} = $imageurl;
+
+                    my $client = $conn->{player};
+                    Slim::Control::Request::notifyFromArray( $client, ['newmetadata'] );
+                }
+                else {
+                    $log->debug( "IMAGE DATA CACHED" );
+                    $cover_cache = $req->content;
+                }
             }
             else {
                 $log->error( "unable to perform content" );
