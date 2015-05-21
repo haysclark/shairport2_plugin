@@ -42,3 +42,9 @@ Ensure avahi-daemon is configured correctly. edit the file /etc/avahi/avahi-daem
     rlimit-nproc=3
   
 Then restart avahi-daemon and LMS to apply all settings.
+
+== THANKS ==
+
+DMSTK - for doing the intial work and starting this great project
+stuartUSA - for bringing it to the masses
+chincheta0815 - for the OS autodetect and base work on metadata/covers
