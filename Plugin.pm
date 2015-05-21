@@ -89,8 +89,6 @@ sub initPlugin {
     Slim::Control::Request::subscribe( \&playerSubscriptionChange,
         [ ['client'], [ 'new', 'reconnect', 'disconnect' ] ] );
 
-    $log->error( "ImageProxy registerHandler installed" );
-
     Slim::Web::ImageProxy->registerHandler(
         match => qr/shairtunes:image:/,
         func  => \&_getcover,
@@ -118,7 +116,7 @@ sub _getcover {
 
     my $imagefilepath = File::Spec->catdir( $cachedir, 'shairtunes', $track_id . "_cover.jpg" );
 
-    $log->error( "_getcover called for $imagefilepath" );
+    $log->debug( "_getcover called for $imagefilepath" );
 
     # now return the URLified file path
     return Slim::Utils::Misc::fileURLFromPath( $imagefilepath );
