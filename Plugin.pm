@@ -450,12 +450,13 @@ sub conn_handle_request {
                 }
             }
             elsif ( $req->header( 'Content-Type' ) eq "application/x-dmap-tagged" ) {
-                $log->debug( "DMAP DATA found. Length: " . length( $req->content ) );
 
-                #my %dmapData = Plugins::ShairTunes::Utils::getDmapData($req->content);
-                #$airTunesMetaData{artist} = $dmapData{artist};
-                #$airTunesMetaData{album} = $dmapData{album};
-                #$airTunesMetaData{title} = $dmapData{title};
+                my %dmapData = Plugins::ShairTunes2::Utils::getDmapData( $req->content );
+                $airTunesMetaData{artist} = $dmapData{artist};
+                $airTunesMetaData{album}  = $dmapData{album};
+                $airTunesMetaData{title}  = $dmapData{title};
+
+                $log->debug( "DMAP DATA found. Length: " . length( $req->content ) . " " . Dumper( \%dmapData ) );
 
             }
             elsif ( $req->header( 'Content-Type' ) eq "image/jpeg" ) {
