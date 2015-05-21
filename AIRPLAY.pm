@@ -1,4 +1,4 @@
-package Plugins::ShairTunes::AIRPLAY;
+package Plugins::ShairTunes2::AIRPLAY;
 
 use strict;
 use base qw(Slim::Player::Pipeline);
@@ -70,7 +70,7 @@ sub contentType {
 sub getMetadataFor {
     my ( $class, $client, $url, $forceCurrent ) = @_;
 
-    my %metaData     = Plugins::ShairTunes::Plugin->getAirTunesMetaData();
+    my %metaData     = Plugins::ShairTunes2::Plugin->getAirTunesMetaData();
     my $metaArtist   = $metaData{artist};
     my $metaTitle    = $metaData{title};
     my $metaAlbum    = $metaData{album};

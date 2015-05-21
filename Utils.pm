@@ -1,4 +1,4 @@
-package Plugins::ShairTunes::Utils;
+package Plugins::ShairTunes2::Utils;
 
 use strict;
 use Config;

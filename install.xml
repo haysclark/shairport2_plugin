@@ -1,20 +1,20 @@
 <?xml version="1.0"?>
 
 <extension>
-	<name>PLUGIN_SHAIRTUNES</name>
-	<module>Plugins::ShairTunes::Plugin</module>
+	<name>PLUGIN_SHAIRTUNES2</name>
+	<module>Plugins::ShairTunes2::Plugin</module>
 	<playerMenu>RADIO</playerMenu>
-	<version>0.23.6</version>
-	<description>PLUGIN_SHAIRTUNES_DESC</description>
-	<creator>DSTMK</creator>
+	<version>0.1</version>
+	<description>PLUGIN_SHAIRTUNES2_DESC</description>
+	<creator>disaster123</creator>
 	<defaultState>enabled</defaultState>
 	<homepageURL></homepageURL>
 	<optionsURL></optionsURL>
-	<icon>plugins/ShairTunes/html/images/icon.png</icon>
+	<icon></icon>
 	<type>2</type><!-- type=extension -->
 	<targetApplication>
 		<id>Squeezecenter</id>
-		<minVersion>7.3</minVersion>
+		<minVersion>7.8</minVersion>
 		<maxVersion>7.*</maxVersion>
 	</targetApplication>
 	<targetPlatform>Linux</targetPlatform>

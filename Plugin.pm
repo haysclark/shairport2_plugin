@@ -1,9 +1,9 @@
-use strict;
+package Plugins::ShairTunes2::Plugin;
 
 package Plugins::ShairTunes::Plugin;
 
-use Plugins::ShairTunes::AIRPLAY;
-use Plugins::ShairTunes::Utils;
+use Plugins::ShairTunes2::AIRPLAY;
+use Plugins::ShairTunes2::Utils;
 
 use base qw(Slim::Plugin::OPMLBased);
 
@@ -324,7 +324,7 @@ sub conn_handle_request {
             $data .= join '', map { chr } split( /\./, $1 );
         }
         else {
-            $data .= Plugins::ShairTunes::Utils::ip6bin( $ip );
+            $data .= Plugins::ShairTunes2::Utils::ip6bin( $ip );
         }
 
         my @hw_addr = +( map( ord, split( //, md5( $conn->{player}->name() ) ) ) )[ 0 .. 5 ];
@@ -339,7 +339,7 @@ sub conn_handle_request {
     }
 
     if ( length $conn->{password} ) {
-        if ( !Plugins::ShairTunes::Utils::digest_ok( $req, $conn ) ) {
+        if ( !Plugins::ShairTunes2::Utils::digest_ok( $req, $conn ) ) {
             my $nonce = md5_hex( map { rand } 1 .. 20 );
             $conn->{nonce} = $nonce;
             my $apname = $conn->{player}->name();
@@ -391,7 +391,7 @@ sub conn_handle_request {
             );
 
             my $dec = '"'
-              . Plugins::ShairTunes::Utils::helperBinary() . '"'
+              . Plugins::ShairTunes2::Utils::helperBinary() . '"'
               . join( ' ', '', map { sprintf "%s '%s'", $_, $dec_args{$_} } keys( %dec_args ) );
             $log->debug( "decode command: $dec" );
 
