@@ -170,19 +170,23 @@ sub createListenPort {
         ReuseAddr => 1,
         Proto     => 'tcp',
     );
+
+    die "Socket creation failed!: $!" if !$listen;
+
     return $listen;
 }
 
 sub publishPlayer {
     my ( $apname, $password, $port ) = @_;
 
-    my $pid = fork();
-
     my $pw_clause = ( length $password ) ? "pw=true" : "pw=false";
     my @hw_addr = +( map( ord, split( //, md5( $apname ) ) ) )[ 0 .. 5 ];
 
+    my $pid = fork();
     if ( $pid == 0 ) {
-        {
+        no warnings;
+        eval {
+            $log->info( "start avahi-publish-service \"$apname\"" );
             exec(
                 'avahi-publish-service', join( '', map { sprintf "%02X", $_ } @hw_addr ) . "\@$apname",
                 "_raop._tcp",            $port,
@@ -194,8 +198,10 @@ sub publishPlayer {
                 $pw_clause,              "vn=3",
                 "txtvers=1"
             );
+            $log->error( "start avahi-publish-service failed" );
         };
-        {
+        eval {
+            $log->info( "start dns-sd \"$apname\"" );
             exec(
                 'dns-sd', '-R',
                 join( '', map { sprintf "%02X", $_ } @hw_addr ) . "\@$apname", "_raop._tcp",
@@ -208,8 +214,10 @@ sub publishPlayer {
                 $pw_clause, "vn=3",
                 "txtvers=1"
             );
+            $log->error( "start dns-sd failed" );
         };
-        {
+        eval {
+            $log->info( "start mDNSPublish \"$apname\"" );
             exec(
                 'mDNSPublish', join( '', map { sprintf "%02X", $_ } @hw_addr ) . "\@$apname",
                 "_raop._tcp",  $port,
@@ -221,6 +229,7 @@ sub publishPlayer {
                 $pw_clause,    "vn=3",
                 "txtvers=1"
             );
+            $log->error( "start mDNSPublish failed" );
         };
         die "could not run avahi-publish-service nor dns-sd nor mDNSPublish";
     }
