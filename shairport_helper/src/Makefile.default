@@ -1,32 +1,38 @@
 
-MY_CFLAGS= $(shell pkg-config --cflags ao)
-MY_LDFLAGS= $(shell pkg-config --libs ao)
-MY_LDFLAGS+= -static
+DEFINES = -DHAIRTUNES_STANDALONE -DHTTP_PARSER_STRICT=0 -D_POSIX_PTHREAD_SEMANTICS -D_REENTRANT 
+CFLAGS  = -Wall -O2 -fPIC $(DEFINES)
+LDFLAGS = -lm -lpthread -static
+
+CFLAGS += $(shell pkg-config --cflags ao)
+LDFLAGS += $(shell pkg-config --libs ao)
+
+EXECUTABLE = shairport_helper
+SOURCES = alac.c http.c hairtunes.c
+OBJECTS = $(SOURCES:.c=.o)
+
 ifeq ($(shell uname),FreeBSD)
-MY_LDFLAGS+= -lssl
+	LDFLAGS += -lssl
 else
-MY_CFLAGS+= $(shell pkg-config --cflags openssl)
-MY_LDFLAGS+= $(shell pkg-config --libs openssl)
+	CFLAGS += $(shell pkg-config --cflags openssl)
+	LDFLAGS += $(shell pkg-config --libs openssl)
 endif
-CFLAGS:=-O2 -Wall $(MY_CFLAGS)
-LDFLAGS:=-lm -lpthread $(MY_LDFLAGS)
-OBJS=$(wildcard *.o)
 
-all: shairport_helper
+all: $(EXECUTABLE)
 
-shairport_helper: $(wildcard *.c)
-	$(CC) $(CFLAGS) -DHAIRTUNES_STANDALONE $(OBJS) -o $@ $(LDFLAGS)
+$(EXECUTABLE): $(OBJECTS)
+	$(CC) $(OBJECTS) $(LIBRARY) $(LDFLAGS) -o $@
+	strip $@
+
+$(OBJECTS): $(DEPS)
+
+.c.o:
+	$(CC) $(CFLAGS) $(CPPFLAGS) $< -c -o $@
 
 clean:
-	-@rm -rf shairport_helper $(OBJS)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-prefix=/usr/local
+	-@rm -f $(OBJECTS) $(EXECUTABLE)
 
 install: shairport_helper
-	install -D -m 0755 shairport_helper $(DESTDIR)$(prefix)/bin/shairport_helper
+	echo "please copy yourself. pick a reasable name and adapt Plugin.pm for auto detection"
 
 .PHONY: all clean install
 .SILENT: clean
