@@ -34,7 +34,7 @@ use IPC::Open2;
 my $log = Slim::Utils::Log->addLogCategory(
     {
         'category'     => 'plugin.shairtunes',
-        'defaultLevel' => 'ERROR',
+        'defaultLevel' => 'INFO',
         'description'  => getDisplayName(),
     }
 );
