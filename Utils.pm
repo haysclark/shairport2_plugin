@@ -35,7 +35,14 @@ sub helperBinary {
         $shairtunes_helper = $directory . "helperBinaries/shairport_helper-i86pc-solaris";
     }
     elsif ( $Config{'archname'} =~ /linux/ ) {
-        $shairtunes_helper = $directory . "helperBinaries/shairport_helper-x64-linux";
+
+        # x86_64-linux-gnu-thread-multi
+        if ( $Config{'archname'} =~ /x86_64/ ) {
+            $shairtunes_helper = $directory . "helperBinaries/shairport_helper-x64-linux";
+        }
+        else {
+            $shairtunes_helper = $directory . "helperBinaries/shairport_helper-i386-linux";
+        }
     }
     else {
         die( "No shairport_helper binary for your system available." );
