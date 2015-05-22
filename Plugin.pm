@@ -83,6 +83,8 @@ sub getAirTunesMetaData {
 sub initPlugin {
     my $class = shift;
 
+    revoke_publishPlayer();
+
     # for an unknown reason this line in initPlugin is only logged if it has loglevel error ;-(
     $log->error( "Initialising " . $class->_pluginDataFor( 'version' ) . " on " . $Config{'archname'} );
 
@@ -103,6 +105,7 @@ sub getDisplayName {
 }
 
 sub shutdownPlugin {
+    revoke_publishPlayer();
     return;
 }
 
@@ -174,6 +177,19 @@ sub createListenPort {
     die "Socket creation failed!: $!" if !$listen;
 
     return $listen;
+}
+
+sub revoke_publishPlayer {
+
+    # pidof is OK here as it only works for the running user
+    # and squeezeserver uses a dedicated one
+    # so we can simply take care of all
+    my @pids = split( /\s+/, `pidof avahi-publish-service dns-sd mDNSPublish 2>/dev/null` );
+
+    if ( @pids ) {
+        $log->info( "Send TERM sig to old publish player services. pids: " . join( ", ", @pids ) );
+        kill '-TERM', @pids;
+    }
 }
 
 sub publishPlayer {
