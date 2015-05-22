@@ -110,11 +110,11 @@ sub getDmapData {
             $data = unpack( "a*", $data );
             $dmapData{artist} = $data;
         }
-        if ( $tag =~ /asal/ ) {
+        elsif ( $tag =~ /asal/ ) {
             $data = unpack( "a*", $data );
             $dmapData{album} = $data;
         }
-        if ( $tag =~ /minm/ ) {
+        elsif ( $tag =~ /minm/ ) {
             $data = unpack( "a*", $data );
             $dmapData{title} = $data;
         }
