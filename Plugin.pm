@@ -266,7 +266,7 @@ sub conn_read_data {
     my $contentLength = 0;
     my $buffer        = "";
 
-    my $bytesToRead = 256;
+    my $bytesToRead = 1024;
 
     # read header
     while ( 1 ) {
@@ -279,7 +279,7 @@ sub conn_read_data {
 
         $buffer .= $incoming;
 
-        last if ( $buffer =~ /\r\n\r\n/ );
+        last if ( $incoming =~ /\r\n\r\n/ );
     }
     my ( $header, $contentBody ) = split( /\r\n\r\n/, $buffer, 2 );
 
