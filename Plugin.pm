@@ -49,7 +49,8 @@ my $prefs         = preferences( 'plugin.shairtunes' );
 my $hairtunes_cli = "";
 
 my $airport_pem = join '', <DATA>;
-my $rsa = Crypt::OpenSSL::RSA->new_private_key( $airport_pem ) || die "RSA private key import failed";
+my $rsa = Crypt::OpenSSL::RSA->new_private_key( $airport_pem )
+  || do { $log->error( "RSA private key import failed" ); return; };
 
 my %clients     = ();
 my %sockets     = ();
@@ -174,7 +175,10 @@ sub createListenPort {
         Proto     => 'tcp',
     );
 
-    die "Socket creation failed!: $!" if !$listen;
+    if ( !$listen ) {
+        $log->error( "Socket creation failed!: $!" );
+
+    }
 
     return $listen;
 }
@@ -247,7 +251,7 @@ sub publishPlayer {
             );
             $log->error( "start mDNSPublish failed" );
         };
-        die "could not run avahi-publish-service nor dns-sd nor mDNSPublish";
+        $log->error( "could not run avahi-publish-service nor dns-sd nor mDNSPublish" );
     }
 
     return $pid;
@@ -394,10 +398,11 @@ sub conn_handle_request {
             my $sdp   = Net::SDP->new( $req->content );
             my $audio = $sdp->media_desc_of_type( 'audio' );
 
-            die( "no AESIV" )  unless my $aesiv     = decode_base64( $audio->attribute( 'aesiv' ) );
-            die( "no AESKEY" ) unless my $rsaaeskey = decode_base64( $audio->attribute( 'rsaaeskey' ) );
+            do { $log->error( "no AESIV" ); return; } unless my $aesiv = decode_base64( $audio->attribute( 'aesiv' ) );
+            do { $log->error( "no AESKEY" ); return; }
+              unless my $rsaaeskey = decode_base64( $audio->attribute( 'rsaaeskey' ) );
             $rsa->use_pkcs1_oaep_padding;
-            my $aeskey = $rsa->decrypt( $rsaaeskey ) || die "RSA decrypt failed";
+            my $aeskey = $rsa->decrypt( $rsaaeskey ) || do { $log->error( "RSA decrypt failed" ); return; };
 
             $conn->{aesiv}  = $aesiv;
             $conn->{aeskey} = $aeskey;
@@ -595,7 +600,7 @@ sub conn_handle_request {
 
         };
         /^DENIED$/ && last;
-        die( "Unknown method: $_" );
+        $log->error( "Got unknown method: $_" );
     }
 
     #$log->debug("\n\nPLAYER_MESSAGE_START: \n" .$resp->as_string("\r\n"). "\nPLAYER_MESSAGE_END\n\n");
