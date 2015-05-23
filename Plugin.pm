@@ -424,26 +424,38 @@ sub conn_handle_request {
                 dport => $dport,
             );
 
+            my $shairtunes_helper = Plugins::ShairTunes2::Utils::helperBinary();
+
+            if ( !$shairtunes_helper || !-x $shairtunes_helper ) {
+                $log->error( "I'm sorry your platform \""
+                      . $Config{archname}
+                      . "\" is unsupported or nobody has compiled a binary for it! Can't work." );
+                last;
+            }
+
             my $dec = '"'
-              . Plugins::ShairTunes2::Utils::helperBinary() . '"'
+              . $shairtunes_helper . '"'
               . join( ' ', '', map { sprintf "%s '%s'", $_, $dec_args{$_} } keys( %dec_args ) );
             $log->debug( "decode command: $dec" );
 
-            my $decoder = open2( my $dec_out, my $dec_in, $dec );
+            my $decoder = open2( my $dec_out, my $dec_in, $shairtunes_helper, %dec_args );
 
             $conn->{decoder_pid} = $decoder;
             $conn->{decoder_fh}  = $dec_in;
 
             my $portdesc = <$dec_out>;
-            die( "Expected port number from decoder; got $portdesc" ) unless $portdesc =~ /^port: (\d+)/;
+            $log->error( "Expected port number from decoder; got $portdesc" ) and last
+              unless $portdesc && $portdesc =~ /^port: (\d+)/;
             my $port = $1;
 
             $portdesc = <$dec_out>;
-            die( "Expected cport number from decoder; got $portdesc" ) unless $portdesc =~ /^cport: (\d+)/;
+            $log->error( "Expected cport number from decoder; got $portdesc" ) and last
+              unless $portdesc && $portdesc =~ /^cport: (\d+)/;
             $cport = $1;
 
             $portdesc = <$dec_out>;
-            die( "Expected hport number from decoder; got $portdesc" ) unless $portdesc =~ /^hport: (\d+)/;
+            $log->error( "Expected hport number from decoder; got $portdesc" ) and last
+              unless $portdesc && $portdesc =~ /^hport: (\d+)/;
             my $hport = $1;
 
             $log->info( "launched decoder: $decoder on ports: $port/$cport/$hport" );
