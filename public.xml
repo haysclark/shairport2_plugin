@@ -3,7 +3,7 @@
     <title lang="EN">ShairTunes2 Plugin</title>
   </details>
   <plugins>
-    <plugin name="ShairTunes2" version="0.1" minTarget="7.8" maxTarget="*">
+    <plugin name="ShairTunes2" version="0.12" minTarget="7.8" maxTarget="*">
       <title lang="EN">ShairTunes2</title>
       <desc lang="EN">Airtunes for LMS</desc>
       <url>
