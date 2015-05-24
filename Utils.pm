@@ -34,7 +34,7 @@ sub helperBinary {
     if ( $Config{'archname'} =~ /solaris/ ) {
         $shairtunes_helper = $directory . "helperBinaries/shairport_helper-i86pc-solaris";
     }
-    elsif ( $Config{'archname'} =~ /linux/ ) {
+    elsif ( $Config{'archname'} =~ /linux/ && $Config{'archname'} !~ /arm/ ) {
 
         # x86_64-linux-gnu-thread-multi
         if ( $Config{'archname'} =~ /x86_64/ ) {
