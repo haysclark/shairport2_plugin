@@ -30,6 +30,8 @@ use Crypt::OpenSSL::RSA;
 use Net::SDP;
 use IPC::Open2;
 
+use constant CAN_IMAGEPROXY => ( Slim::Utils::Versions->compareVersions( $::VERSION, '7.8.0' ) >= 0 );
+
 # create log categogy before loading other modules
 my $log = Slim::Utils::Log->addLogCategory(
     {
@@ -93,10 +95,15 @@ sub initPlugin {
     Slim::Control::Request::subscribe( \&playerSubscriptionChange,
         [ ['client'], [ 'new', 'reconnect', 'disconnect' ] ] );
 
-    Slim::Web::ImageProxy->registerHandler(
-        match => qr/shairtunes:image:/,
-        func  => \&_getcover,
-    );
+    if ( CAN_IMAGEPROXY ) {
+        Slim::Web::ImageProxy->registerHandler(
+            match => qr/shairtunes:image:/,
+            func  => \&_getcover,
+        );
+    }
+    else {
+        $log->error( "Imageproxy not supported! Covers disabled!" );
+    }
 
     return 1;
 }

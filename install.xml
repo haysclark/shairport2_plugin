@@ -14,7 +14,7 @@
 	<type>2</type><!-- type=extension -->
 	<targetApplication>
 		<id>Squeezecenter</id>
-		<minVersion>7.8</minVersion>
+		<minVersion>7.5</minVersion>
 		<maxVersion>7.*</maxVersion>
 	</targetApplication>
 	<targetPlatform>Linux</targetPlatform>
