@@ -44,6 +44,11 @@ sub helperBinary {
             $shairtunes_helper = $directory . "helperBinaries/shairport_helper-i386-linux";
         }
     }
+    elsif ( $Config{'archname'} =~ /linux/ && $Config{'archname'} =~ /arm/ ) {
+        if ( $Config{'archname'} =~ /arm-linux-gnueabihf-thread-multi-64int/ ) {
+            $shairtunes_helper = $directory . "helperBinaries/shairport_helper-arm-gnueabihf-multi-64int";
+        }
+    }
     elsif ( $Config{'archname'} =~ /darwin/ ) {
         $shairtunes_helper = $directory . "helperBinaries/shairport_helper-x64-osx";
     }
