@@ -28,7 +28,8 @@ use Data::Dumper;
 use IO::Socket::INET6;
 use Crypt::OpenSSL::RSA;
 use Net::SDP;
-use IPC::Open2;
+use IPC::Open3;
+use IO::Handle;
 
 use constant CAN_IMAGEPROXY => ( Slim::Utils::Versions->compareVersions( $::VERSION, '7.8.0' ) >= 0 );
 
@@ -445,36 +446,53 @@ sub conn_handle_request {
                 last;
             }
 
-            my $dec = '"'
+            my $helper_cmd = '"'
               . $shairtunes_helper . '"'
               . join( ' ', '', map { sprintf "%s '%s'", $_, $dec_args{$_} } keys( %dec_args ) );
-            $log->debug( "decode command: $dec" );
+            $log->debug( "decode command: $helper_cmd" );
 
-            my $decoder = open2( my $dec_out, my $dec_in, $shairtunes_helper, %dec_args );
+            my ( $helper_in, $helper_out, $helper_err ) = ( IO::Handle->new(), IO::Handle->new(), IO::Handle->new() );
 
-            $conn->{decoder_pid} = $decoder;
-            $conn->{decoder_fh}  = $dec_in;
+            my $tied = tied *STDERR;
+            untie *STDERR if $tied;
+            my $helper_pid = open3( $helper_in, $helper_out, $helper_err, $shairtunes_helper, %dec_args );
+            tie *STDERR, 'Tie::Restore', $tied if $tied;
 
-            my $portdesc = <$dec_out>;
-            $log->error( "Expected port number from decoder; got $portdesc" ) and last
-              unless $portdesc && $portdesc =~ /^port: (\d+)/;
-            my $port = $1;
+            $helper_out->blocking( 0 );
+            $helper_err->blocking( 0 );
+            my $sel = IO::Select->new();
+            $sel->add( $helper_out );
+            $sel->add( $helper_err );
 
-            $portdesc = <$dec_out>;
-            $log->error( "Expected cport number from decoder; got $portdesc" ) and last
-              unless $portdesc && $portdesc =~ /^cport: (\d+)/;
-            $cport = $1;
+            $conn->{decoder_pid} = $helper_pid;
+            $conn->{decoder_fh}  = $helper_in;
 
-            $portdesc = <$dec_out>;
-            $log->error( "Expected hport number from decoder; got $portdesc" ) and last
-              unless $portdesc && $portdesc =~ /^hport: (\d+)/;
-            my $hport = $1;
+            my %helper_ports = ( cport => '', hport => '', port => '' );
+            my @ready;
+            while ( @ready = $sel->can_read( 5 ) ) {
+                foreach my $reader ( @ready ) {
+                    while ( defined( my $line = $reader->getline ) ) {
+                        if ( $reader == $helper_err ) {
+                            $log->error( "Helper error: " . $line ) if ( $line !~ /^init_rtp: / );
+                            next;
+                        }
+                        if ( $line =~ /^([ch]?port):\s*(\d+)/ ) {
+                            $helper_ports{$1} = $2;
+                            next;
+                        }
+                        $log->error( "Helper unknown output: " . $line );
+                    }
+                }
+                last if ( !grep { !$helper_ports{$_} } keys %helper_ports );
+            }
 
-            $log->info( "launched decoder: $decoder on ports: $port/$cport/$hport" );
-            $resp->header( 'Transport', $req->header( 'Transport' ) . ";server_port=$port" );
+            $log->info(
+                "launched decoder: $helper_pid on ports: $helper_ports{port}/$helper_ports{cport}/$helper_ports{hport}"
+            );
+            $resp->header( 'Transport', $req->header( 'Transport' ) . ";server_port=$helper_ports{port}" );
 
             my $host         = Slim::Utils::Network::serverAddr();
-            my $url          = "airplay://$host:$hport/stream.wav";
+            my $url          = "airplay://$host:$helper_ports{hport}/stream.wav";
             my $client       = $conn->{player};
             my @otherclients = grep { $_->name ne $client->name and $_->power } $client->syncGroupActiveMembers();
             foreach my $otherclient ( @otherclients ) {
