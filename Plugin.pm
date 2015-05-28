@@ -50,8 +50,8 @@ if ( !-d File::Spec->catdir( $cachedir, "shairtunes" ) ) {
 my $prefs         = preferences( 'plugin.shairtunes' );
 my $hairtunes_cli = "";
 
-my $airport_pem = join '', <DATA>;
-my $rsa = Crypt::OpenSSL::RSA->new_private_key( $airport_pem )
+my $airport_pem = _airport_pem();
+my $rsa         = Crypt::OpenSSL::RSA->new_private_key( $airport_pem )
   || do { $log->error( "RSA private key import failed" ); return; };
 
 my %clients     = ();
@@ -617,10 +617,8 @@ sub conn_handle_request {
 
 }
 
-1;
-
-__DATA__
------BEGIN RSA PRIVATE KEY-----
+sub _airport_pem {
+    return q|-----BEGIN RSA PRIVATE KEY-----
 MIIEpQIBAAKCAQEA59dE8qLieItsH1WgjrcFRKj6eUWqi+bGLOX1HL3U3GhC/j0Qg90u3sG/1CUt
 wC5vOYvfDmFI6oSFXi5ELabWJmT2dKHzBJKa3k9ok+8t9ucRqMd6DZHJ2YCCLlDRKSKv6kDqnw4U
 wPdpOMXziC/AMj3Z/lUVX1G7WSHCAWKf1zNS1eLvqr+boEjXuBOitnZ/bDzPHrTOZz0Dew0uowxf
@@ -642,4 +640,18 @@ cJyRM9SJ7OKlGt0FMSdJD5KG0XPIpAVNwgpXXH5MDJg09KHeh0kXo+QA6viFBi21y340NonnEfdf
 1JnLYT4iyUyx6pcZBmCd8bD0iwY/FzcgNDaUmbX9+XDvRA0CgYEAkE7pIPlE71qvfJQgoA9em0gI
 LAuE4Pu13aKiJnfft7hIjbK+5kyb3TysZvoyDnb3HOKvInK7vXbKuU4ISgxB2bB3HcYzQMGsz1qJ
 2gG0N5hvJpzwwhbhXqFKA4zaaSrw622wDniAK5MlIE0tIAKKP4yxNGjoD2QYjhBGuhvkWKY=
------END RSA PRIVATE KEY-----
+-----END RSA PRIVATE KEY-----|;
+}
+
+1;
+
+package Tie::Restore;
+
+our $VERSION = 0.11;
+
+sub TIESCALAR { $_[1] }
+sub TIEARRAY  { $_[1] }
+sub TIEHASH   { $_[1] }
+sub TIEHANDLE { $_[1] }
+
+1;
