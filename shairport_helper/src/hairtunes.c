@@ -55,6 +55,8 @@ static int debug = 0;
 
 #include "http.h"
 
+const char *version = "0.1";
+
 // default buffer size
 #define START_FILL    256
 #define MIN_FILL      128
@@ -568,7 +570,8 @@ static int init_rtp(void) {
     pthread_t rtp_thread;
     rtp_sockets[0] = sock;
     rtp_sockets[1] = csock;
-    fprintf(stderr, "init_rtp: rtp_sockets[0]=%i, rtp_sockets[1]=%i\n", rtp_sockets[0], rtp_sockets[1]);
+
+    fprintf(stderr, "shairport_helper: VERSION: %s\n", version);
     pthread_create(&rtp_thread, NULL, rtp_thread_func, (void *)rtp_sockets);
 
     return port;
