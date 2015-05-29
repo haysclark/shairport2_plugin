@@ -595,7 +595,7 @@ static int init_http(void)
         servaddr.sin_port        = htons(port);
 
         if (0 > bind(http_listener, (struct sockaddr*) &servaddr, sizeof(servaddr))) {
-            fprintf(stderr, "init_http: Could not bind http listening socket to port %i (%s)\n", port, strerror(errno));
+            // fprintf(stderr, "init_http: Could not bind http listening socket to port %i (%s)\n", port, strerror(errno));
             port++;
             continue;
         }
