@@ -56,10 +56,9 @@ static int debug = 0;
 #include "http.h"
 
 // default buffer size
-#define START_FILL    256 
-// and how full it needs to be to begin (must be <BUFFER_FRAMES)
+#define START_FILL    256
 #define MIN_FILL      128
-
+#define BUFFER_FRAMES 512
 #define MAX_PACKET    2048
 
 typedef unsigned short seq_t;
