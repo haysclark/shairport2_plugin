@@ -472,8 +472,9 @@ sub conn_handle_request {
             while ( @ready = $sel->can_read( 5 ) ) {
                 foreach my $reader ( @ready ) {
                     while ( defined( my $line = $reader->getline ) ) {
+                        $log->error( $line ) and next if ( $line =~ /^shairport_helper: / );
                         if ( $reader == $helper_err ) {
-                            $log->error( "Helper error: " . $line ) if ( $line !~ /^init_rtp: / );
+                            $log->error( "Helper error: " . $line );
                             next;
                         }
                         if ( $line =~ /^([ch]?port):\s*(\d+)/ ) {
