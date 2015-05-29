@@ -729,33 +729,16 @@ static short *buffer_get_frame(void) {
     unsigned short next;
     int i;
 
+    if (ab_buffering)
+        return 0;
+
     pthread_mutex_lock(&ab_mutex);
-    
-    // check if t+16, t+32, t+64, t+128, ... (START_FILL / 2)
-    // packets have arrived... last-chance resend
-    if (!ab_buffering) {
-        for (i = 1; i < (MIN_FILL/2); i = (i * 2)) {
-            next = ab_read + i;
-            abuf = audio_buffer + BUFIDX(next);
-            if (!abuf->ready) {
-                rtp_request_resend(next, next);
-            }
-        }
-    }
 
     buf_fill = ab_write - ab_read;
-    if (buf_fill < MIN_FILL || !ab_synced || ab_buffering) {    // init or underrun. stop and wait
-        
-	//ab_buffering = 1;
-        //pthread_cond_wait(&ab_buffer_ready, &ab_mutex);
-        //ab_read++;
-        //buf_fill = ab_write - ab_read;
-        //bf_est_reset(buf_fill);
-        
+
+    if (buf_fill < MIN_FILL || !ab_synced) {    // init or underrun
+	ab_buffering = 1;
         pthread_mutex_unlock(&ab_mutex);
-
-	//fprintf(stderr, "buffer_get_frame: underrun\n");
-
         return 0;
     }
     if (buf_fill >= BUFFER_FRAMES) {   // overrunning! uh-oh. restart at a sane distance
@@ -763,12 +746,22 @@ static short *buffer_get_frame(void) {
         ab_read = ab_write - buffer_start_fill;
     }
 
-
-    
     read = ab_read;
     ab_read++;
     buf_fill = ab_write - ab_read;
     bf_est_update(buf_fill);
+
+    // check if t+16, t+32, t+64, t+128, ... (buffer_start_fill / 2)
+    // packets have arrived... last-chance resend
+    if (!ab_buffering) {
+        for (i = 16; i < (buffer_start_fill/2); i = (i * 2)) {
+            next = ab_read + i;
+            abuf = audio_buffer + BUFIDX(next);
+            if (!abuf->ready) {
+                rtp_request_resend(next, next);
+            }
+        }
+    }
 
     curframe = audio_buffer + BUFIDX(read);
     if (!curframe->ready) {
