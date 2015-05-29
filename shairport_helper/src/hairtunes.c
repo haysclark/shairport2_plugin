@@ -822,31 +822,6 @@ static int stuff_buffer(double playback_rate, short *inptr, short *outptr) {
     return frame_size + stuff;
 }
 
-static long long starttime;
-static long long samples_played;
-
-static void wait_audio_thread(int samples) {
-	struct timeval tv;
-	struct timespec sleepinterval;
-	sleepinterval.tv_sec = 0;
-	
-	// this is all bit expensive but it's long-term stable
-	gettimeofday(&tv, NULL);
-	long long nowtime = tv.tv_usec + tv.tv_sec * 1e6;
-	
-	if(!starttime)
-		starttime = nowtime;
-	
-	samples_played += samples;
-	
-	long long finishtime = starttime + samples_played * 1e6 / sampling_rate;
-	sleepinterval.tv_nsec = (finishtime - nowtime) * 1e6;
-	
-	nanosleep(&sleepinterval, NULL);
-	
-	return;
-}
-
 static void *audio_thread_func(void *arg) {
     int play_samples = 0;
 
