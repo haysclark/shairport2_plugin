@@ -390,7 +390,7 @@ static void buffer_put_packet(seq_t seqno, char *data, int len) {
     pthread_mutex_lock(&ab_mutex);
     if (ab_buffering && buf_fill >= buffer_start_fill) {
         ab_buffering = 0;
-        pthread_cond_signal(&ab_buffer_ready);
+        pthread_cond_broadcast(&ab_buffer_ready);
     }
     pthread_mutex_unlock(&ab_mutex);
 }
@@ -887,17 +887,15 @@ static void *audio_thread_func(void *arg) {
                 }
 			}			        
         }
-        
-       if (ab_buffering) {
-           wait_audio_thread(play_samples);
-           continue;
-       }
-       
-        do {
+
+        inbuf = buffer_get_frame();
+        while (!inbuf) {
+            pthread_mutex_lock(&ab_mutex);
+            pthread_cond_wait(&ab_buffer_ready, &ab_mutex);
+            pthread_mutex_unlock(&ab_mutex);
             inbuf = buffer_get_frame();
-            wait_audio_thread(play_samples);
-        } while (!inbuf);
-        
+        }
+
 #ifdef FANCY_RESAMPLING
         if (fancy_resampling) {
             int i;
