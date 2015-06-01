@@ -384,7 +384,7 @@ sub conn_handle_request {
         $resp->header( 'Apple-Response', $signature );
     }
 
-    if ( length $conn->{password} ) {
+    if ( defined $conn->{password} && length $conn->{password} ) {
         if ( !Plugins::ShairTunes2::Utils::digest_ok( $req, $conn ) ) {
             my $nonce = md5_hex( map { rand } 1 .. 20 );
             $conn->{nonce} = $nonce;
