@@ -50,7 +50,12 @@ sub helperBinary {
         }
     }
     elsif ( $Config{'archname'} =~ /darwin/ ) {
-        $shairtunes_helper = $directory . "helperBinaries/shairport_helper-x64-osx";
+        if ( $Config{'archname'} =~ /x86_64/ ) {
+            $shairtunes_helper = $directory . "helperBinaries/shairport_helper-x64-osx";
+        }
+        else {
+            $shairtunes_helper = $directory . "helperBinaries/shairport_helper-i386-osx";
+        }
     }
 
     return $shairtunes_helper;
