@@ -16,8 +16,6 @@ use Slim::Networking::Async;
 use Slim::Networking::Async::Socket;
 use Slim::Networking::Async::Socket::HTTP;
 
-use Slim::Web::ImageProxy;
-
 use Config;
 use Digest::MD5 qw(md5 md5_hex);
 use MIME::Base64;
@@ -97,6 +95,8 @@ sub initPlugin {
         [ ['client'], [ 'new', 'reconnect', 'disconnect' ] ] );
 
     if ( CAN_IMAGEPROXY ) {
+        require Slim::Web::ImageProxy;
+        Slim::Web::ImageProxy->import();
         Slim::Web::ImageProxy->registerHandler(
             match => qr/shairtunes:image:/,
             func  => \&_getcover,
