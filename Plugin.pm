@@ -162,7 +162,7 @@ sub playerSubscriptionChange {
     }
     elsif ( $reqstr eq "client disconnect" ) {
         $log->debug( "publisher for $clientname PID $clients{$client} will be terminated." );
-        system "kill $clients{$client}";
+        kill 'TERM', $clients{$client};
         Slim::Networking::Select::removeRead( $sockets{$client} );
     }
 }
@@ -199,8 +199,12 @@ sub revoke_publishPlayer {
     my @pids = split( /\s+/, `pidof avahi-publish-service dns-sd mDNSPublish 2>/dev/null` );
 
     if ( @pids ) {
-        $log->info( "Send TERM sig to old publish player services. pids: " . join( ", ", @pids ) );
-        kill '-TERM', @pids;
+
+        # use ->error as ->info does not always work while in plugin init
+        $log->error( "Send TERM sig to old publish player services. pids: " . join( ", ", @pids ) );
+
+        # -TERM is available since perl 5.18
+        kill 'TERM', @pids;
     }
 }
 
