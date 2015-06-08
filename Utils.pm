@@ -4,6 +4,8 @@ use strict;
 use warnings;
 
 use Config;
+
+use Slim::Utils::Unicode;
 use Digest::MD5 qw(md5 md5_hex);
 
 my %dmapData = (
@@ -119,15 +121,15 @@ sub getDmapData {
 
         if ( $tag =~ /asar/ ) {
             $data = unpack( "a*", $data );
-            $dmapData{artist} = $data;
+            $dmapData{artist} = Slim::Utils::Unicode::utf8decode( $data );
         }
         elsif ( $tag =~ /asal/ ) {
             $data = unpack( "a*", $data );
-            $dmapData{album} = $data;
+            $dmapData{album} = Slim::Utils::Unicode::utf8decode( $data );
         }
         elsif ( $tag =~ /minm/ ) {
             $data = unpack( "a*", $data );
-            $dmapData{title} = $data;
+            $dmapData{title} = Slim::Utils::Unicode::utf8decode( $data );
         }
     }
 
