@@ -400,6 +400,8 @@ sub conn_handle_request {
     }
 
     for ( $req->method ) {
+        $log->debug( "got command / method: $_" );
+
         /^OPTIONS$/ && do {
             $resp->header( 'Public',
                 'ANNOUNCE, SETUP, RECORD, PAUSE, FLUSH, TEARDOWN, OPTIONS, GET_PARAMETER, SET_PARAMETER' );
@@ -549,7 +551,7 @@ sub conn_handle_request {
                     $log->debug( "Duration: " . $durationRealTime . "; Position: " . $positionRealTime );
                 }
                 else {
-                    $log->error( "unable to perform content for req: " . $req->content );
+                    $log->error( "unable to perform content for req SET_PARAMETER text/parameters: " . $req->content );
                 }
             }
             elsif ( $req->header( 'Content-Type' ) eq "application/x-dmap-tagged" ) {
