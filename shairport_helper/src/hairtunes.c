@@ -58,9 +58,9 @@ static int debug = 0;
 const char *version = "0.1";
 
 // default buffer size
-#define START_FILL    256
-#define MIN_FILL      128
-#define BUFFER_FRAMES 512
+#define START_FILL    64
+#define MIN_FILL      32
+#define BUFFER_FRAMES 128
 #define MAX_PACKET    2048
 
 typedef unsigned short seq_t;
