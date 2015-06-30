@@ -493,6 +493,8 @@ sub conn_handle_request {
                 }
                 last if ( !grep { !$helper_ports{$_} } keys %helper_ports );
             }
+            $sel->remove( $helper_out );
+            $sel->remove( $helper_err );
 
             $log->info(
                 "launched decoder: $helper_pid on ports: $helper_ports{port}/$helper_ports{cport}/$helper_ports{hport}"
