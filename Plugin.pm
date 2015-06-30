@@ -470,8 +470,9 @@ sub conn_handle_request {
             $sel->add( $helper_out );
             $sel->add( $helper_err );
 
-            $conn->{decoder_pid} = $helper_pid;
-            $conn->{decoder_fh}  = $helper_in;
+            $conn->{decoder_pid}   = $helper_pid;
+            $conn->{decoder_fh}    = $helper_in;
+            $conn->{decoder_fherr} = $helper_err;
 
             my %helper_ports = ( cport => '', hport => '', port => '' );
             my @ready;
@@ -517,7 +518,10 @@ sub conn_handle_request {
         /^FLUSH$/  && do {
             my $dfh = $conn->{decoder_fh};
             print $dfh "flush\n";
-            $conn->{player}->execute( ['pause'] );
+
+            my $derr = $conn->{decoder_fherr};
+            while ( <$derr> ) { $log->debug( "DEC debug: " . $_ ); }
+
             last;
         };
         /^TEARDOWN$/ && do {
