@@ -60,7 +60,7 @@ const char *version = "0.2";
 // default buffer size
 #define START_FILL    64
 #define MIN_FILL      32
-#define BUFFER_FRAMES 128
+#define BUFFER_FRAMES 1024
 #define MAX_PACKET    2048
 
 typedef unsigned short seq_t;
