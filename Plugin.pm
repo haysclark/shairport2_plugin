@@ -518,6 +518,12 @@ sub conn_handle_request {
 
         /^RECORD$/ && last;
         /^FLUSH$/  && do {
+
+            # this is pause at airplay - but only stop also flushed the buffer at the player
+            # so if you press skip you won't hear the old song
+            # also double FLUSH won't result in play again (like on skip)
+            $conn->{player}->execute( ['stop'] );
+
             my $dfh = $conn->{decoder_fh};
             print $dfh "flush\n";
 
@@ -553,6 +559,10 @@ sub conn_handle_request {
 
                     $airTunesMetaData{duration} = $durationRealTime;
                     $airTunesMetaData{position} = $positionRealTime;
+
+                    my $client = $conn->{player};
+                    Slim::Control::Request::notifyFromArray( $client, ['newmetadata'] );
+                    $client->execute( ['play'] );
 
                     $log->debug( "Duration: " . $durationRealTime . "; Position: " . $positionRealTime );
                 }
