@@ -2,6 +2,7 @@ package Plugins::ShairTunes2::Utils;
 
 use strict;
 use warnings;
+use Encode;
 
 use Config;
 
@@ -80,7 +81,9 @@ sub ip6bin {
 sub imagekeyfrommeta {
     my ( $airTunesMetaData ) = @_;
 
-    return uc md5_hex( $airTunesMetaData->{artist} . $airTunesMetaData->{album} . $airTunesMetaData->{title} );
+    return
+      uc md5_hex(
+        encode( 'utf-8', $airTunesMetaData->{artist} . $airTunesMetaData->{album} . $airTunesMetaData->{title} ) );
 }
 
 sub digest_ok {
