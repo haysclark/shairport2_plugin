@@ -616,7 +616,7 @@ sub conn_handle_request {
                 }
             }
             else {
-                $log->error( "unable to perform content" );
+                $log->error( "Unknown content-type: \"" . $req->header( 'Content-Type' ) . "\"" );
             }
             last;
         };
