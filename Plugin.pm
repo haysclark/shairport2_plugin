@@ -528,7 +528,7 @@ sub conn_handle_request {
             print $dfh "flush\n";
 
             my $derr = $conn->{decoder_fherr};
-            while ( <$derr> ) { $log->debug( "DEC debug: " . $_ ); }
+            while ( <$derr> ) { $log->error( "DEC debug: " . $_ ); }
 
             last;
         };

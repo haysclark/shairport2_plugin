@@ -55,7 +55,7 @@ static int debug = 0;
 
 #include "http.h"
 
-const char *version = "0.1";
+const char *version = "0.2";
 
 // default buffer size
 #define START_FILL    64
@@ -376,9 +376,10 @@ static void buffer_put_packet(seq_t seqno, char *data, int len) {
         ab_write = seqno;
     } else if (seq_order(ab_read, seqno)) {     // late but not yet played
         abuf = audio_buffer + BUFIDX(seqno);
-        fprintf(stderr, "buffer_put_packet: recovered packet %04X (%04X:%04X)\n", seqno, ab_read, ab_write);
+        if (debug)
+            fprintf(stderr, "buffer_put_packet: recovered packet %04X (%04X:%04X)\n", seqno, ab_read, ab_write);
     } else {    // too late.
-        fprintf(stderr, "buffer_put_packet: late packet %04X (%04X:%04X)\n", seqno, ab_read, ab_write);
+        fprintf(stderr, "buffer_put_packet: too late packet %04X (%04X:%04X)\n", seqno, ab_read, ab_write);
     }
     buf_fill = ab_write - ab_read;
     pthread_mutex_unlock(&ab_mutex);
@@ -469,7 +470,8 @@ static void rtp_request_resend(seq_t first, seq_t last) {
     if (seq_order(last, first))
         return;
 
-    fprintf(stderr, "\nRR[W:%i R:%i first=%i last=%i\n", ab_write, ab_read, first, last);
+    if (debug)
+        fprintf(stderr, "\nRR[W:%i R:%i first=%i last=%i\n", ab_write, ab_read, first, last);
 
     unsigned char req[8];    // *not* a standard RTCP NACK
     req[0] = 0x80;
@@ -851,7 +853,8 @@ static void *audio_thread_func(void *arg) {
             http_connection = accept(http_listener, NULL, NULL);
             
             if (http_connection != -1) {
-                fprintf(stderr, "audio_thread_func: got HTTP connection %i\n", http_connection);
+                if (debug)
+                    fprintf(stderr, "audio_thread_func: got HTTP connection %i\n", http_connection);
 
                 http_status = 1;
                 http_parser_ctx = malloc(sizeof(http_parser));
@@ -874,10 +877,12 @@ static void *audio_thread_func(void *arg) {
                     http_parser_ctx = 0;
                     http_status = 0;
 			    } else {
-                    fprintf(stderr, "audio_thread_func: HTTP recvd:\n");
-                    fflush(stderr);
-                    fwrite(http_buffer, recvd, 1, stderr);
-                    
+                    if (debug) {
+                        fprintf(stderr, "audio_thread_func: HTTP recvd:\n");
+                        fwrite(http_buffer, recvd, 1, stderr);
+                        fflush(stderr);
+                    }
+
                     http_parser_execute(http_parser_ctx, &http_settings, http_buffer, recvd);
                 }
 			}			        
@@ -928,7 +933,8 @@ int http_on_headers_complete(http_parser* parser)
     
     const char* response = "HTTP/1.1 200 OK\r\nServer: HairTunes\r\nConnection: close\r\nContent-Type: audio/L16;rate=44100;channels=2\r\n\r\n";
     
-    fprintf(stderr, "http_on_headers_complete\n");
+    if (debug)
+        fprintf(stderr, "http_on_headers_complete\n");
     
     sent = send(http_connection, response, strlen(response), 0);    
     
