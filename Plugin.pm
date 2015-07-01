@@ -405,6 +405,12 @@ sub conn_handle_request {
         /^OPTIONS$/ && do {
             $resp->header( 'Public',
                 'ANNOUNCE, SETUP, RECORD, PAUSE, FLUSH, TEARDOWN, OPTIONS, GET_PARAMETER, SET_PARAMETER' );
+
+            # OPTIONS is called every 2s so ideal to read all errors on a regular basis
+            if ( my $derr = $conn->{decoder_fherr} ) {
+                while ( <$derr> ) { $log->error( "Decoder error: " . $_ ); }
+            }
+
             last;
         };
 
@@ -511,6 +517,7 @@ sub conn_handle_request {
                     { line => [ 'AirPlay streaming to ' . $client->name . ':', 'Turning this player off' ] } );
                 $otherclient->execute( [ 'power', 0 ] );
             }
+            $conn->{poweredoff} = !$client->power;
             $conn->{player}->execute( [ 'playlist', 'play', $url ] );
 
             last;
@@ -527,15 +534,22 @@ sub conn_handle_request {
             my $dfh = $conn->{decoder_fh};
             print $dfh "flush\n";
 
-            my $derr = $conn->{decoder_fherr};
-            while ( <$derr> ) { $log->error( "DEC debug: " . $_ ); }
-
             last;
         };
         /^TEARDOWN$/ && do {
             $resp->header( 'Connection', 'close' );
             close $conn->{decoder_fh};
             $conn->{player}->execute( ['stop'] );
+
+            # read all left errors
+            my $derr = $conn->{decoder_fherr};
+            while ( <$derr> ) { $log->error( "Decoder error: " . $_ ); }
+
+            close $conn->{decoder_fherr};
+
+            if ( $conn->{poweredoff} ) {
+                $conn->{player}->execute( [ 'power', 0 ] );
+            }
             last;
         };
         /^SET_PARAMETER$/ && do {
