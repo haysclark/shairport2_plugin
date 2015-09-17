@@ -523,8 +523,14 @@ sub conn_handle_request {
             last;
         };
 
-        /^RECORD$/ && last;
-        /^FLUSH$/  && do {
+        /^RECORD$/ && do {
+
+            Slim::Control::Request::notifyFromArray( $conn->{player}, ['newmetadata'] );
+            $conn->{player}->execute( ['play'] );
+
+            last;
+        };
+        /^FLUSH$/ && do {
 
             # this is pause at airplay - but only stop also flushed the buffer at the player
             # so if you press skip you won't hear the old song
