@@ -547,16 +547,15 @@ sub conn_handle_request {
         };
         /^FLUSH$/ && do {
 
-            # with IOS9 flush can't stop / flush the playback - otherwise playing stops
-
             # this is pause at airplay - but only stop also flushed the buffer at the player
             # so if you press skip you won't hear the old song
             # also double FLUSH won't result in play again (like on skip)
             # 
-            # $conn->{player}->execute( ['stop'] );
+            my $dfh = $conn->{decoder_fh};
+            print $dfh "flush\n";
 
-            #my $dfh = $conn->{decoder_fh};
-            #print $dfh "flush\n";
+            $conn->{player}->execute( ['stop'] );
+            $conn->{player}->execute( ['play'] );
 
             last;
         };
