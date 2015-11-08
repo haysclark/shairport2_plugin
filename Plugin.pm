@@ -110,7 +110,7 @@ sub initPlugin {
 }
 
 sub getDisplayName {
-    return ( 'PLUGIN_SHAIRTUNES' );
+    return ( 'PLUGIN_SHAIRTUNES2' );
 }
 
 sub shutdownPlugin {
