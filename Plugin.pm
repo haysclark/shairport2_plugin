@@ -20,6 +20,7 @@ use Config;
 use Digest::MD5 qw(md5 md5_hex);
 use MIME::Base64;
 use File::Spec;
+use File::Which;
 use POSIX qw(:errno_h);
 use Data::Dumper;
 
@@ -85,10 +86,9 @@ sub getAirTunesMetaData {
 sub initPlugin {
     my $class = shift;
 
-    revoke_publishPlayer();
+    $log->info( "Initialising " . $class->_pluginDataFor( 'version' ) . " on " . $Config{'archname'} );
 
-    # for an unknown reason this line in initPlugin is only logged if it has loglevel error ;-(
-    $log->error( "Initialising " . $class->_pluginDataFor( 'version' ) . " on " . $Config{'archname'} );
+    revoke_publishPlayer();
 
     # Subscribe to player connect/disconnect messages
     Slim::Control::Request::subscribe( \&playerSubscriptionChange,
@@ -110,7 +110,7 @@ sub initPlugin {
 }
 
 sub getDisplayName {
-    return ( 'PLUGIN_SHAIRTUNES' );
+    return ( 'PLUGIN_SHAIRTUNES2' );
 }
 
 sub shutdownPlugin {
@@ -218,50 +218,65 @@ sub publishPlayer {
     if ( $pid == 0 ) {
         no warnings;
         eval {
-            $log->info( "start avahi-publish-service \"$apname\"" );
-            exec(
-                'avahi-publish-service', join( '', map { sprintf "%02X", $_ } @hw_addr ) . "\@$apname",
-                "_raop._tcp",            $port,
-                "tp=UDP",                "sm=false",
-                "sv=false",              "ek=1",
-                "et=0,1",                "md=0,1,2",
-                "cn=0,1",                "ch=2",
-                "ss=16",                 "sr=44100",
-                $pw_clause,              "vn=3",
-                "txtvers=1"
-            );
-            $log->error( "start avahi-publish-service failed" );
+            if ( which('avahi-publish-service') ) {
+                $log->info( "start avahi-publish-service \"$apname\"" );
+                exec(
+                    'avahi-publish-service', join( '', map { sprintf "%02X", $_ } @hw_addr ) . "\@$apname",
+                    "_raop._tcp",            $port,
+                    "tp=UDP",                "sm=false",
+                    "sv=false",              "ek=1",
+                    "et=0,1",                "md=0,1,2",
+                    "cn=0,1",                "ch=2",
+                    "ss=16",                 "sr=44100",
+                    $pw_clause,              "vn=3",
+                    "txtvers=1"
+                );
+                $log->error( "start avahi-publish-service failed" );
+            }
+            else {
+                $log->info( "avahi-publish-player not in path" );
+            }
         };
         eval {
-            $log->info( "start dns-sd \"$apname\"" );
-            exec(
-                'dns-sd', '-R',
-                join( '', map { sprintf "%02X", $_ } @hw_addr ) . "\@$apname", "_raop._tcp",
-                ".",        $port,
-                "tp=UDP",   "sm=false",
-                "sv=false", "ek=1",
-                "et=0,1",   "md=0,1,2",
-                "cn=0,1",   "ch=2",
-                "ss=16",    "sr=44100",
-                $pw_clause, "vn=3",
-                "txtvers=1"
-            );
-            $log->error( "start dns-sd failed" );
+            if ( which('dns-sd') ) {
+                $log->info( "start dns-sd \"$apname\"" );
+                exec(
+                    'dns-sd', '-R',
+                    join( '', map { sprintf "%02X", $_ } @hw_addr ) . "\@$apname", "_raop._tcp",
+                    ".",        $port,
+                    "tp=UDP",   "sm=false",
+                    "sv=false", "ek=1",
+                    "et=0,1",   "md=0,1,2",
+                    "cn=0,1",   "ch=2",
+                    "ss=16",    "sr=44100",
+                    $pw_clause, "vn=3",
+                    "txtvers=1"
+                );
+                $log->error( "start dns-sd failed" );
+            }
+            else {
+                $log->info( "dns-sd not in path" );
+            }
         };
         eval {
-            $log->info( "start mDNSPublish \"$apname\"" );
-            exec(
-                'mDNSPublish', join( '', map { sprintf "%02X", $_ } @hw_addr ) . "\@$apname",
-                "_raop._tcp",  $port,
-                "tp=UDP",      "sm=false",
-                "sv=false",    "ek=1",
-                "et=0,1",      "md=0,1,2",
-                "cn=0,1",      "ch=2",
-                "ss=16",       "sr=44100",
-                $pw_clause,    "vn=3",
-                "txtvers=1"
-            );
-            $log->error( "start mDNSPublish failed" );
+            if ( which('mDNSPublish') ) {
+                $log->info( "start mDNSPublish \"$apname\"" );
+                exec(
+                    'mDNSPublish', join( '', map { sprintf "%02X", $_ } @hw_addr ) . "\@$apname",
+                    "_raop._tcp",  $port,
+                    "tp=UDP",      "sm=false",
+                    "sv=false",    "ek=1",
+                    "et=0,1",      "md=0,1,2",
+                    "cn=0,1",      "ch=2",
+                    "ss=16",       "sr=44100",
+                    $pw_clause,    "vn=3",
+                    "txtvers=1"
+                );
+                $log->error( "start mDNSPublish failed" );
+            }
+            else {
+                $log->info( "mDNSPublish not in path" );
+            }
         };
         $log->error( "could not run avahi-publish-service nor dns-sd nor mDNSPublish" );
     }
