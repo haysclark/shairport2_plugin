@@ -85,10 +85,9 @@ sub getAirTunesMetaData {
 sub initPlugin {
     my $class = shift;
 
-    revoke_publishPlayer();
+    $log->info( "Initialising " . $class->_pluginDataFor( 'version' ) . " on " . $Config{'archname'} );
 
-    # for an unknown reason this line in initPlugin is only logged if it has loglevel error ;-(
-    $log->error( "Initialising " . $class->_pluginDataFor( 'version' ) . " on " . $Config{'archname'} );
+    revoke_publishPlayer();
 
     # Subscribe to player connect/disconnect messages
     Slim::Control::Request::subscribe( \&playerSubscriptionChange,
