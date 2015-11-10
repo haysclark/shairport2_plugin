@@ -5,9 +5,18 @@ ShairPort2 Plugin for Squeezebox Server adds airTunes support for each Squeezebo
 
 To install the plugin first - then install the dependancies:
 
+Linux:
+
     > apt-get install libcrypt-openssl-rsa-perl libio-socket-inet6-perl libwww-perl avahi-utils libio-socket-ssl-perl
     > wget http://www.inf.udec.cl/~diegocaro/rpi/libnet-sdp-perl_0.07-1_all.deb
     > dpkg -i libnet-sdp-perl_0.07-1_all.deb
+
+OSX:
+
+    > sudo /usr/bin/perl -MCPAN -e'install Crypt::OpenSSL::RSA'
+    > sudo /usr/bin/perl -MCPAN -e'install IO::Socket::INET6'
+    > sudo /usr/bin/perl -MCPAN -e'install Net::SDP'
+
 
 Now open the LMS GUI; click on Settings, then select the Plugins tab, at the bottom of the page add the repo:
 
