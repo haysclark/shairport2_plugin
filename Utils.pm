@@ -50,6 +50,9 @@ sub helperBinary {
     elsif ( $Config{'archname'} =~ /linux/ && $Config{'archname'} =~ /arm/ ) {
         if ( $Config{'archname'} =~ /arm-linux-gnueabihf-thread-multi-64int/ ) {
             $shairtunes_helper = $directory . "helperBinaries/shairport_helper-arm-gnueabihf-multi-64int";
+	}
+        else {
+            $shairtunes_helper = $directory . "helperBinaries/shairport_helper-arm-gnueabi-thread-multi";
         }
     }
     elsif ( $Config{'archname'} =~ /darwin/ ) {
